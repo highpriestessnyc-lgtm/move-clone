@@ -755,14 +755,14 @@ async function vrmFromBuffer(buf) {
   if (VRMUtils.combineSkeletons) VRMUtils.combineSkeletons(gltf.scene);
   VRMUtils.rotateVRM0(vrm);
   // 古い形式(VRM0)は180°回して正面を向けるので、骨の回転もそのぶん変換が必要
-  vrm.userData.v0 = !!(vrm.meta && String(vrm.meta.metaVersion) === "0");
+  vrm.mcV0 = !!(vrm.meta && String(vrm.meta.metaVersion) === "0");
   vrm.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
   return vrm;
 }
 const RX = new THREE.Vector3(1, 0, 0), RNX = new THREE.Vector3(-1, 0, 0), RNY = new THREE.Vector3(0, -1, 0);
 function poseVRM(vrm, J, k) {
   const H = vrm.humanoid, node = (n) => H.getNormalizedBoneNode(n);
-  const v0 = vrm.userData.v0;
+  const v0 = vrm.mcV0;
   const set = (n, q) => { const b = node(n); if (!b) return; if (v0) { q = q.clone(); q.x = -q.x; q.z = -q.z; } b.quaternion.slerp(q, k); };
   const up = J.shMid.clone().sub(J.hipMid);
   const qHips = basis(J.lhip.clone().sub(J.rhip), up);
