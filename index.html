@@ -108,6 +108,16 @@ label { color:#b4bddb; }
 }
 
 
+/* music + avatar gallery */
+#musicBox { display:flex; flex-direction:column; gap:8px; }
+#musicBox[hidden] { display:none; }
+#wave { width:100%; height:72px; border-radius:10px; background:#07091a; border:1px solid rgba(140,155,255,.2); cursor:pointer; touch-action:none; }
+#mStart { width:90px; font:inherit; font-weight:800; color:var(--ink); background:#11152a; border:1px solid rgba(160,173,255,.22); border-radius:9px; padding:8px; }
+#avGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; max-height:60vh; overflow:auto; }
+#avGrid button { display:flex; flex-direction:column; align-items:center; gap:4px; padding:6px; font-size:.75rem; }
+#avGrid img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; background:#0b0e20; }
+#avGrid .vroid { aspect-ratio:1; width:100%; display:grid; place-items:center; border-radius:8px; background:linear-gradient(135deg,#ff4fc8,#45e7ff); font-size:1.6rem; }
+
 /* Mobile reliability and touch targets */
 #cam { object-fit: cover; aspect-ratio: 4 / 3; }
 button, select { min-height: 44px; touch-action: manipulation; }
@@ -169,13 +179,23 @@ input, select, button { max-width: 100%; }
         <button id="btnCam" class="cy">📷 カメラ起動</button>
         <button id="btnDemo">🤖 デモのクローン</button>
       </div>
-      <div class="row"><label for="bpm">テンポ</label><input id="bpm" type="range" min="60" max="160" value="100"><span id="bpmVal">100</span></div>
+      <div class="row"><label for="bpm">テンポ</label><input id="bpm" type="range" min="50" max="200" value="100"><span id="bpmVal">100</span></div>
       <div class="row">
         <label for="counts">長さ</label>
         <select id="counts"><option value="16" selected>2エイト（16カウント）</option><option value="32">4エイト（32カウント）</option><option value="64">8エイト（64カウント）</option></select>
         <label><input id="click" type="checkbox" checked> クリック音</label>
       </div>
       <div class="row"><label for="music">曲（任意）</label><input id="music" type="file" accept="audio/*"></div>
+      <div id="musicBox" hidden>
+        <canvas id="wave" width="800" height="144" aria-label="曲の波形。タップした所が1カウント目になる"></canvas>
+        <div class="row">
+          <label for="mStart">1カウント目</label><input id="mStart" type="number" min="0" step="0.05" value="0"><span class="note">秒</span>
+          <button id="btnPreview">▶ 試聴</button>
+          <button id="btnHere">📍 今の位置</button>
+          <button id="btnTap">🥁 タップでテンポ</button>
+        </div>
+        <p class="note">波形をタップした所が「1カウント目」。試聴しながら『今の位置』を押してもOK。ピンクの範囲が録画の長さ。録画前の4カウントも曲が流れるよ。</p>
+      </div>
       <div class="row"><button id="btnRec" class="main" disabled>🔴 録画（4カウント後スタート）</button></div>
       <div class="vrmBox">
         <div class="row">
@@ -246,12 +266,18 @@ input, select, button { max-width: 100%; }
         <div class="row">
           <input id="vrmFile" type="file" accept=".vrm" hidden>
           <button id="btnVrm">🧍 VRMを読み込む</button>
-          <button id="btnVrmSample">サンプルVRM</button>
+          <button id="btnVrmSample">👥 サンプルキャラ</button>
         </div>
         <p class="note" id="vrmNote">本格的な外部3Dモデルを使う場合は、VRoid Studioなどで用意した .vrm ファイルを読み込んでね。読み込んだモデルは、選択中の「自分／クローン」に割り当てられます。モデルの利用条件は配布元で確認してください。</p>
       </div>
     </section>
   </div>
+  <dialog id="avDlg" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:14px;width:min(92vw,720px)">
+    <p style="margin:0 0 8px;font-weight:800">👥 キャラを選んでね（<span id="avFor">自分</span>に入ります）</p>
+    <div id="avGrid"></div>
+    <p class="note" style="margin-top:8px">キャラ：100Avatars by Polygonal Mind（CC0・自由に使える）、VRoidサンプル by pixiv。初回は1〜2MBダウンロードします。</p>
+    <div class="row" style="margin-top:8px"><button id="avClose">閉じる</button></div>
+  </dialog>
   <dialog id="pickDlg" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:14px;max-width:min(92vw,720px)">
     <p style="margin:0 0 8px;font-weight:800">👆 取り込みたい人（先生など）をタップしてね</p>
     <canvas id="pickCanvas" style="width:100%;border-radius:10px;cursor:pointer"></canvas>
@@ -308,12 +334,83 @@ function tick(strong) {
     o.start(); g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.08); o.stop(actx.currentTime + 0.1);
   } catch (e) {}
 }
-$("music").addEventListener("change", (e) => {
+// ===== 曲：どこから使うか（1カウント目）を決める =====
+const M = { start: 0, peaks: null, dur: 0, previewing: false, timer: null, taps: [] };
+$("music").addEventListener("change", async (e) => {
   const f = e.target.files[0]; if (!f) return;
   if (S.audio) S.audio.pause();
   S.audio = new Audio(URL.createObjectURL(f));
-  setStatus("🎵 曲を読み込んだ：" + f.name);
+  S.audio.preservesPitch = true;
+  M.start = 0; $("mStart").value = 0; M.peaks = null; M.dur = 0;
+  $("musicBox").hidden = false;
+  setStatus("🎵 曲を読み込んだ：" + f.name + "（波形を作成中…）");
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const buf = await actx.decodeAudioData(await f.arrayBuffer());
+    const ch = buf.getChannelData(0), N = 800, step = Math.floor(ch.length / N);
+    M.peaks = new Float32Array(N);
+    for (let i = 0; i < N; i++) { let m = 0; for (let j = i * step, k = j + step; j < k; j += 16) m = Math.max(m, Math.abs(ch[j])); M.peaks[i] = m; }
+    M.dur = buf.duration;
+    setStatus("🎵 " + f.name + "：波形をタップして1カウント目を決めてね");
+  } catch (err) { console.error(err); setStatus("🎵 曲を読み込んだ（波形は作れなかったけど、秒数で指定できるよ）"); }
+  drawWave();
 });
+function recLenSec() { return (counts() * beatMs()) / 1000; }
+function drawWave() {
+  const c = $("wave"), x = c.getContext("2d"), W = c.width, H = c.height;
+  x.clearRect(0, 0, W, H);
+  const dur = M.dur || (S.audio && S.audio.duration) || 0;
+  if (!dur) return;
+  const sx = (t) => (t / dur) * W;
+  x.fillStyle = "rgba(255,79,200,.22)"; x.fillRect(sx(M.start), 0, Math.max(2, sx(M.start + recLenSec()) - sx(M.start)), H);
+  x.fillStyle = "rgba(69,231,255,.12)"; x.fillRect(sx(Math.max(0, M.start - (4 * beatMs()) / 1000)), 0, sx(M.start) - sx(Math.max(0, M.start - (4 * beatMs()) / 1000)), H);
+  if (M.peaks) { x.fillStyle = "#8fa0ff"; for (let i = 0; i < M.peaks.length; i++) { const h = Math.max(1, M.peaks[i] * H * 0.9); x.fillRect((i / M.peaks.length) * W, (H - h) / 2, Math.max(1, W / M.peaks.length - 0.5), h); } }
+  x.fillStyle = "#ff4fc8"; x.fillRect(sx(M.start) - 1.5, 0, 3, H);
+  if (S.audio && !S.audio.paused) { x.fillStyle = "#ffe07a"; x.fillRect(sx(S.audio.currentTime) - 1, 0, 2, H); }
+  x.fillStyle = "#fff"; x.font = "bold 22px sans-serif"; x.fillText("1", sx(M.start) + 6, 24);
+}
+function setStart(t) {
+  const dur = M.dur || (S.audio && S.audio.duration) || 0;
+  M.start = Math.max(0, Math.min(dur ? dur - 0.5 : t, t));
+  $("mStart").value = M.start.toFixed(2); drawWave();
+}
+$("wave").addEventListener("pointerdown", (e) => {
+  const r = e.target.getBoundingClientRect(), dur = M.dur || (S.audio && S.audio.duration) || 0;
+  if (dur) setStart(((e.clientX - r.left) / r.width) * dur);
+});
+$("mStart").addEventListener("input", () => setStart(+$("mStart").value || 0));
+function stopPreview() { M.previewing = false; clearInterval(M.timer); if (S.audio) S.audio.pause(); $("btnPreview").textContent = "▶ 試聴"; drawWave(); }
+$("btnPreview").onclick = () => {
+  if (!S.audio) return;
+  if (M.previewing) { stopPreview(); return; }
+  if (S.mode !== "idle") stopAll();
+  M.previewing = true; $("btnPreview").textContent = "⏸ 止める";
+  S.audio.playbackRate = 1; S.audio.currentTime = M.start; S.audio.play().catch(() => {});
+  const startedAt = performance.now();
+  M.timer = setInterval(() => { drawWave(); if (performance.now() - startedAt > recLenSec() * 1000 + 300) stopPreview(); }, 50);
+};
+$("btnHere").onclick = () => { if (S.audio) setStart(S.audio.currentTime); };
+$("btnTap").onclick = () => {
+  const t = performance.now();
+  if (M.taps.length && t - M.taps[M.taps.length - 1] > 2000) M.taps = [];
+  M.taps.push(t); if (M.taps.length > 8) M.taps.shift();
+  if (M.taps.length >= 4) {
+    const v = Math.round(60000 / ((M.taps[M.taps.length - 1] - M.taps[0]) / (M.taps.length - 1)));
+    $("bpm").value = Math.max(50, Math.min(200, v)); $("bpmVal").textContent = bpm(); drawWave();
+    $("btnTap").textContent = "🥁 " + bpm() + " BPM";
+  } else $("btnTap").textContent = "🥁 あと" + (4 - M.taps.length) + "回";
+};
+$("counts").addEventListener("change", drawWave);
+$("bpm").addEventListener("input", drawWave);
+// 曲を「startSec」から鳴らす（マイナスなら少し待ってから頭から）
+let musicWait = null;
+function playMusicFrom(startSec, rate = 1) {
+  if (!S.audio) return;
+  clearTimeout(musicWait); M.previewing = false; clearInterval(M.timer);
+  S.audio.playbackRate = rate;
+  if (startSec >= 0) { S.audio.currentTime = startSec; S.audio.play().catch(() => {}); }
+  else { S.audio.pause(); S.audio.currentTime = 0; musicWait = setTimeout(() => S.audio.play().catch(() => {}), (-startSec * 1000) / rate); }
+}
 
 // ===== 3Dの舞台 =====
 const canvas = $("stage");
@@ -849,9 +946,10 @@ $("btnRec").onclick = () => {
   if (!S.camOn) return;
   S.mode = "count"; S.countStart = performance.now(); S.lastBeat = -1;
   $("btnRec").disabled = true; $("btnPlay").disabled = true;
+  playMusicFrom(M.start - (4 * beatMs()) / 1000);
 };
 function finishRecord() {
-  const take = { id: Date.now(), name: "テイク" + (S.takes.length + 1), bpm: bpm(), counts: counts(), dur: counts() * beatMs(), frames: S.recFrames, on: true, v: 3 };
+  const take = { id: Date.now(), name: "テイク" + (S.takes.length + 1), bpm: bpm(), counts: counts(), dur: counts() * beatMs(), frames: S.recFrames, on: true, v: 3, mStart: S.audio ? M.start : null };
   S.takes.unshift(take);
   let on = 0; for (const t of S.takes) { if (t.on && on < 3) on++; else t.on = false; }
   S.recFrames = []; renderTakes();
@@ -863,10 +961,12 @@ function startPlay() {
   S.mode = "play"; S.playStart = performance.now(); S.syncSum = 0; S.syncN = 0; S.lastBeat = -1;
   $("sync").hidden = false;
   $("btnStop").disabled = false; $("btnRec").disabled = !S.camOn; $("btnPlay").disabled = true;
-  if (S.audio) { S.audio.currentTime = 0; S.audio.play().catch(() => {}); }
+  S.loopIdx = 0;
+  const tk = S.takes.find((t) => t.on);
+  if (S.audio && tk) playMusicFrom(tk.mStart != null ? tk.mStart : M.start, bpm() / tk.bpm);
 }
 function stopAll() {
-  S.mode = "idle"; if (S.audio) S.audio.pause(); big("");
+  S.mode = "idle"; clearTimeout(musicWait); if (S.audio) S.audio.pause(); big("");
   $("btnStop").disabled = true; $("btnPlay").disabled = !S.takes.length; $("btnRec").disabled = !S.camOn;
   if (S.recorder && S.recorder.state === "recording") S.recorder.stop();
 }
@@ -1103,11 +1203,34 @@ function useVRM(buf, name) {
 }
 $("btnVrm").onclick = () => $("vrmFile").click();
 $("vrmFile").onchange = async (e) => { const f = e.target.files[0]; if (f) useVRM(await f.arrayBuffer(), f.name); e.target.value = ""; };
-$("btnVrmSample").onclick = async () => {
-  setStatus("⏳ サンプルVRMをダウンロード中…");
-  try { const r = await fetch(SAMPLE_VRM); if (!r.ok) throw new Error(r.status); useVRM(await r.arrayBuffer(), "サンプル"); }
-  catch (e) { setStatus("⚠️ サンプルを取れなかった。VRoid Hubなどから.vrmを落として『VRMを読み込む』でどうぞ", true); }
+// サンプルキャラ（CC0の100Avatars＋VRoidサンプル）
+const AR = "https://arweave.net/";
+const AVATARS = [["Polydancer", "jPOg-G0MPH55ZQmamFhT9f8cHn-hjeAQ0mRO5gWeKMQ", "SUPfb9dzBeLUUpJaEjGPGDkEE_6PylCs3_wU_Em69LM"], ["Jimmy", "mmPA7zxvHTEEmKEAnMPX7jnaT1MD4dqUj8mTPenSAiw", "BzBAmOXelXBP3i2Xb7mbnsOkW-zq-Hjr6jzcGYGeI24"], ["Hugo", "iYaEdMdq8faogyRdgF4plnZIq40oOERENie94XmEdvQ", "B8nvqenkiQMEtPgzAT3tXAGd9So2PzXkrVG3qm45-MM"], ["David", "H3cBhsOEoiQ8XZiwG31SyCUtiDewBZRccxIDztyHfSY", "QNxPdQp-_ZN0KTNCCpVjD-XZi2-528NGvTH31qIkxU0"], ["Kyle", "0E5wEEVl5VGCcuGVQylq3dpC3TClLR3JhuhEyhYh7NQ", "108xQGJhxn0IT8ySox3ZJovhSLKf_txhI4UTe6Kq0N0"], ["Robert", "gwG7w4bY-A5c3R6A6GOz3xBCgbPvkFQmqPIDtvnNsYI", "gaFPebQ9hSZDa_xNHkja8CH0Qde2y41L95VQTtroWNA"], ["Mikel", "-eJyDjujQRvakRImdvulg-1dKQkPwMeQv-55IbKqLh4", "t_QkyGz6d1_mY312l7lt_-8VGL9QlkwmyPbvdmkpN8U"], ["Chad", "s15TxeRcxamOZ0qDfjME1Bl2Ku7Vs4IQs8RthpxYjOQ", "CunA7AqeUljg1OBXtIURtIFVJIJFXGxz69xMZk8rh8s"], ["Retroman", "N7Ps0Ad5RNr8JVyTFr0YM5tzlUJvAxeJ362XNn1j86E", "bSXmDVe_7HWfOXJTdhGmTCnvhPn_0MVpLRUwKDZrvms"], ["Astrodisco", "uS4wvZn6sURMWJuwWzWnCqGaqDtZSiQQdTwci0f6hmM", "MSz3KAwK4h4pY7g8EMOqDNW6YmKgk34LvbtkZeaWHXk"], ["BigBro", "7crmR-srbxx-GwAN-P9_8737cxKoBjV7Ie5tEqS4aXc", "qpaQ3vMJUZZ6GgdlLpySPvPm6D4ZlFTAgEk4AnQIQR4"], ["LilBro", "ekXWzK3wj4Yhw6ztUKGLyJ3Lr4amZELjA4w__K-svMg", "_TG0lqPlE6Dzdp5oA-rdRsSm_nFlmvLv_Ax2pz0DpYo"], ["Kate", "1q4IQwLQXJVS0JGSpeXlRdazmZYdwJbmLbTv7o0s5Y8", "ZRZbxFWEXmD7VkMDaGp8RTCrJgZE72kEAnnMqFrwS7I"], ["Jennifer", "LKp1uJLAZFmncdCNSZ8oopU7ZElXTvn4BmM4CUcFclc", "5DKYpuaEX8Fal3eONiT3AZdzz4sKF2-Uv0HOnk5ks-8"], ["Olivia", "MgsNlTetzAoVEC6E-lswj65vp7StkOZXXd5OjjqzYZI", "5wQlWAKsJjepBJacFSYjF72M0b5lbCOqWwDgoPZ8Hhw"], ["Rose", "Ea1KXujzJatQgCFSMzGOzp_UtHqB1pyia--U3AtkMAY", "MsKV9G8Dvzv1rOfU8aCLlxZ2PtzQ-J9ijkdkFU-ExPo"], ["Erika", "GZkfa0SNnrBWluRL_pXpakg7T3K3d4l87__wR4mD3UM", "C3HkA5xa9jXxSySEJCZEhtrFkrCyccD4RR25QfXIpyE"], ["Lydia", "x48D7v037irPQYG7e0vZLDV1E3x5-KookbP9-vaXvYE", "DgPsMxXBXBxREc7Wq_w-L0Z2MFiM9E7T5s0yV0c4PJg"], ["Samuela", "4VjBzmk3iDQS0-013pUMFpFYbKGNTL4qcQ-PVwADxk4", "IcM8jehLXCuW088P8GACx39noyVRY9OFU69BLQM3GI4"], ["Astronaut", "T0c0z_XEPQHy3vyXz31XB22s_6JTqHdnau8exq_I8tI", "Qo512sj7GqyM2wvlubg4aPyA-Hl_VTxRGYiDZ0A4Wx4"], ["Wolfman", "wGhrzz7gMTxVeu8SeinAox3FO57BjQ09xjjcO4bOR9I", "RTrjeoVf81PJR_T4Et5jNTQz_Dwrfpf3R-UH3PgqCHI"], ["Polybot", "DUR8v-IugXppdMBxPdE1rDO2dZCJJ7ZgBTXSRgPJFNo", "PJ-ovenhR5xdQPv_Z1NkujIpPWjfD_7XENdf7yzHZ_0"], ["Skelly", "3qGxPjmrwuHxuiT5v4LaR_PVoJ9XYLXLM_N7fdxiF_M", "L4roz__VkpKXMFpFdMpfqL7ME79-PW7-mysfDp-Ovfo"], ["Devil", "gfVzs1oH_aPaHVxpQK86HT_rqzyrFPOUKUrDJ30yprs", "llxwUMPCfar71x4hLTU4f1-pcsYeGDUD4Gxm1dhWaDg"]];
+const vrmCache = {};
+async function loadSample(name, url) {
+  $("avDlg").close();
+  setStatus("⏳ 「" + name + "」をダウンロード中…");
+  try {
+    if (!vrmCache[url]) { const r = await fetch(url); if (!r.ok) throw new Error(r.status); vrmCache[url] = await r.arrayBuffer(); }
+    useVRM(vrmCache[url], name);
+  } catch (e) { setStatus("⚠️ 「" + name + "」を取れなかった。通信環境を確認してね", true); }
+}
+$("btnVrmSample").onclick = () => {
+  const g = $("avGrid");
+  if (!g.childElementCount) {
+    const add = (name, url, thumb) => {
+      const b = document.createElement("button");
+      b.innerHTML = thumb ? `<img loading="lazy" alt="">` : `<div class="vroid">👧</div>`;
+      if (thumb) b.querySelector("img").src = thumb;
+      b.append(name); b.onclick = () => loadSample(name, url); g.appendChild(b);
+    };
+    add("VRoidの女の子", SAMPLE_VRM, null);
+    for (const [n, m, t] of AVATARS) add(n, AR + m, AR + t);
+  }
+  $("avFor").textContent = S.edit === "you" ? "自分" : "クローン";
+  $("avDlg").showModal();
 };
+$("avClose").onclick = () => $("avDlg").close();
 loadLookUI();
 
 // ===== メインループ =====
@@ -1124,7 +1247,6 @@ function loop(now) {
     if (beat < 4) { big(String(4 - beat)); $("beat").textContent = "♪ 準備…"; }
     else {
       S.mode = "rec"; S.recStart = S.countStart + 4 * bm; S.recFrames = []; S.lastBeat = -1; big("");
-      if (S.audio) { S.audio.currentTime = 0; S.audio.play().catch(() => {}); }
     }
   }
   if (S.mode === "rec") {
@@ -1157,6 +1279,8 @@ function loop(now) {
   });
   if (S.mode === "play" && active[0]) {
     const tk = active[0], beat = Math.floor((e * (bpm() / tk.bpm)) / bm);
+    const li = Math.floor((e * (bpm() / tk.bpm)) / tk.dur);
+    if (li !== S.loopIdx) { S.loopIdx = li; if (S.audio) playMusicFrom(tk.mStart != null ? tk.mStart : M.start, bpm() / tk.bpm); }
     if (beat !== S.lastBeat) { S.lastBeat = beat; tick(beat % 8 === 0); }
     const bi = beat % tk.counts;
     $("beat").textContent = `▶ ${Math.floor(bi / 8) + 1}/${Math.ceil(tk.counts / 8)}エイト　カウント ${bi % 8 + 1}`;
