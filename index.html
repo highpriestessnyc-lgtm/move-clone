@@ -114,9 +114,24 @@ label { color:#b4bddb; }
 #wave { width:100%; height:72px; border-radius:10px; background:#07091a; border:1px solid rgba(140,155,255,.2); cursor:pointer; touch-action:none; }
 #mStart { width:90px; font:inherit; font-weight:800; color:var(--ink); background:#11152a; border:1px solid rgba(160,173,255,.22); border-radius:9px; padding:8px; }
 #avGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; max-height:60vh; overflow:auto; }
+#avGrid button[hidden] { display:none; }
 #avGrid button { display:flex; flex-direction:column; align-items:center; gap:4px; padding:6px; font-size:.75rem; }
 #avGrid img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; background:#0b0e20; }
 #avGrid .vroid { aspect-ratio:1; width:100%; display:grid; place-items:center; border-radius:8px; background:linear-gradient(135deg,#ff4fc8,#45e7ff); font-size:1.6rem; }
+
+/* stage controls (top-left of the camera view) */
+.stageCtl { display:flex; gap:8px; pointer-events:auto; flex-wrap:wrap; }
+.stageCtl button { min-height:48px; padding:8px 14px; border-radius:999px; font-size:.95rem; box-shadow:0 6px 18px rgba(0,0,0,.45); }
+.stageCtl button[hidden] { display:none; }
+.stageCtl #sRec { background:#ff2d55; border-color:#ff2d55; color:#fff; font-size:1.05rem; padding:8px 18px; }
+.stageCtl #sRec:disabled, .stageCtl button:disabled { opacity:.45; }
+.stageCtl #sRec.live { animation:recPulse 1s infinite; }
+@keyframes recPulse { 50% { box-shadow:0 0 0 8px rgba(255,45,85,.25); } }
+#big small { display:block; font-size:.22em; letter-spacing:.08em; color:#fff; text-align:center; }
+/* avatar tabs */
+#avTabs { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+#avTabs button { flex:1 1 auto; padding:8px 10px; }
+#avTabs button.on { background:var(--pink); border-color:var(--pink); color:#fff; }
 
 /* Mobile reliability and touch targets */
 #cam { object-fit: cover; aspect-ratio: 4 / 3; }
@@ -129,7 +144,9 @@ input, select, button { max-width: 100%; }
   #stage { position:absolute; inset:0; }
   #cam { width: 29%; min-width: 88px; max-width: 132px; }
   #camOverlay { width:29%; height:auto; }
-  .hud { max-width:65%; }
+  .hud { max-width:68%; }
+  .stageCtl button { min-height:44px; padding:6px 12px; font-size:.85rem; }
+  .stageCtl #sRec { font-size:.95rem; padding:6px 14px; }
   .chip { font-size:.68rem; max-width:100%; white-space:normal; }
   .deck { grid-template-columns:minmax(0,1fr); }
   .row > button { flex: 1 1 auto; }
@@ -164,6 +181,12 @@ input, select, button { max-width: 100%; }
     <video id="cam" playsinline webkit-playsinline autoplay muted></video>
     <canvas id="camOverlay" width="320" height="240"></canvas>
     <div class="hud">
+      <div class="stageCtl">
+        <button id="sCam" class="cy">📷 カメラ起動</button>
+        <button id="sRec" hidden disabled>🔴 録画</button>
+        <button id="sPlay" class="main" disabled>▶ クローンと踊る</button>
+        <button id="sStop" disabled>■</button>
+      </div>
       <div class="chip" id="status">📷 カメラを起動してね（スマホはHTTPSで開く）</div>
       <div class="chip" id="beat">♪ ---</div>
       <div class="chip" id="sync" hidden>シンクロ --%</div>
@@ -196,7 +219,7 @@ input, select, button { max-width: 100%; }
         </div>
         <p class="note">波形をタップした所が「1カウント目」。試聴しながら『今の位置』を押してもOK。ピンクの範囲が録画の長さ。録画前の4カウントも曲が流れるよ。</p>
       </div>
-      <div class="row"><button id="btnRec" class="main" disabled>🔴 録画（4カウント後スタート）</button></div>
+      <div class="row"><button id="btnRec" class="main" disabled>🔴 録画（5・6・7・8のあとスタート）</button></div>
       <div class="vrmBox">
         <div class="row">
           <input id="vidFile" type="file" accept="video/*" hidden>
@@ -274,6 +297,9 @@ input, select, button { max-width: 100%; }
   </div>
   <dialog id="avDlg" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:14px;width:min(92vw,720px)">
     <p style="margin:0 0 8px;font-weight:800">👥 キャラを選んでね（<span id="avFor">自分</span>に入ります）</p>
+    <div id="avTabs">
+      <button data-cat="boy" class="on">👦 男の子</button><button data-cat="girl">👧 女の子</button><button data-cat="fun">👻 おもしろ</button><button data-cat="all">ぜんぶ</button>
+    </div>
     <div id="avGrid"></div>
     <p class="note" style="margin-top:8px">キャラ：100Avatars by Polygonal Mind（CC0・自由に使える）、VRoidサンプル by pixiv。初回は1〜2MBダウンロードします。</p>
     <div class="row" style="margin-top:8px"><button id="avClose">閉じる</button></div>
@@ -942,8 +968,13 @@ function drawCamOverlay() {
 }
 
 // ===== 録画 → 再生 =====
+function showStage() {
+  const r = $("stageBox").getBoundingClientRect();
+  if (r.top < -4 || r.top > 40) $("stageBox").scrollIntoView({ behavior: "smooth", block: "start" });
+}
 $("btnRec").onclick = () => {
   if (!S.camOn) return;
+  showStage();
   S.mode = "count"; S.countStart = performance.now(); S.lastBeat = -1;
   $("btnRec").disabled = true; $("btnPlay").disabled = true;
   playMusicFrom(M.start - (4 * beatMs()) / 1000);
@@ -958,6 +989,7 @@ function finishRecord() {
 }
 function startPlay() {
   if (!S.takes.some((t) => t.on)) return;
+  showStage();
   S.mode = "play"; S.playStart = performance.now(); S.syncSum = 0; S.syncN = 0; S.lastBeat = -1;
   $("sync").hidden = false;
   $("btnStop").disabled = false; $("btnRec").disabled = !S.camOn; $("btnPlay").disabled = true;
@@ -972,6 +1004,19 @@ function stopAll() {
 }
 $("btnPlay").onclick = startPlay;
 $("btnStop").onclick = stopAll;
+// カメラ画面の左上ボタン（下のボタンと同じ動き）
+$("sCam").onclick = () => $("btnCam").click();
+$("sRec").onclick = () => $("btnRec").click();
+$("sPlay").onclick = () => $("btnPlay").click();
+$("sStop").onclick = () => $("btnStop").click();
+function syncStageCtl() {
+  $("sCam").hidden = S.camOn; $("sCam").disabled = $("btnCam").disabled;
+  $("sRec").hidden = !S.camOn; $("sRec").disabled = $("btnRec").disabled;
+  $("sRec").classList.toggle("live", S.mode === "rec");
+  $("sRec").textContent = S.mode === "count" ? "⏳ 5・6・7・8" : S.mode === "rec" ? "🔴 録画中" : "🔴 録画";
+  $("sPlay").disabled = $("btnPlay").disabled;
+  $("sStop").disabled = $("btnStop").disabled;
+}
 
 function poseAt(take, t) {
   const f = take.frames; if (!f.length) return null;
@@ -1226,11 +1271,23 @@ $("btnVrmSample").onclick = () => {
     };
     add("VRoidの女の子", SAMPLE_VRM, null);
     for (const [n, m, t] of AVATARS) add(n, AR + m, AR + t);
+    for (const b of g.children) b.dataset.cat = AV_CAT[b.lastChild.textContent] || "fun";
   }
+  showAvCat(AV_TAB);
   $("avFor").textContent = S.edit === "you" ? "自分" : "クローン";
   $("avDlg").showModal();
 };
 $("avClose").onclick = () => $("avDlg").close();
+const AV_CAT = {};
+"Jimmy Hugo David Kyle Robert Mikel Chad Retroman BigBro LilBro Polydancer".split(" ").forEach((n) => (AV_CAT[n] = "boy"));
+"VRoidの女の子 Kate Jennifer Olivia Rose Erika Lydia Samuela Astrodisco".split(" ").forEach((n) => (AV_CAT[n] = "girl"));
+let AV_TAB = "boy";
+function showAvCat(cat) {
+  AV_TAB = cat;
+  for (const t of $("avTabs").children) t.classList.toggle("on", t.dataset.cat === cat);
+  for (const b of $("avGrid").children) b.hidden = !(cat === "all" || b.dataset.cat === cat);
+}
+for (const t of $("avTabs").children) t.onclick = () => showAvCat(t.dataset.cat);
 loadLookUI();
 
 // ===== メインループ =====
@@ -1241,10 +1298,11 @@ function loop(now) {
   const bm = beatMs();
   const active = S.takes.filter((t) => t.on).slice(0, 3);
 
+  syncStageCtl();
   if (S.mode === "count") {
     const e = now - S.countStart, beat = Math.floor(e / bm);
     if (beat !== S.lastBeat) { S.lastBeat = beat; if (beat < 4) tick(beat === 0); }
-    if (beat < 4) { big(String(4 - beat)); $("beat").textContent = "♪ 準備…"; }
+    if (beat < 4) { $("big").innerHTML = (5 + beat) + "<small>" + (S.audio ? "曲に合わせて…" : "かまえて…") + "</small>"; $("beat").textContent = "♪ 5・6・7・8 のあと録画スタート"; }
     else {
       S.mode = "rec"; S.recStart = S.countStart + 4 * bm; S.recFrames = []; S.lastBeat = -1; big("");
     }
