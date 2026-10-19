@@ -1,0 +1,1179 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MOVE CLONE｜踊ったら、クローンが生まれる</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;800&display=swap">
+<style>
+:root {
+  --bg: #0d0b14; --panel: #191427; --line: #2f2745; --ink: #f6f2ff; --muted: #a59cc0;
+  --pink: #ff3fb4; --cyan: #3fe0ff; --gold: #ffd23f;
+  --display: "Dela Gothic One", "Hiragino Sans", sans-serif;
+  --body: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-weight: 500; }
+body { padding: 12px max(12px, env(safe-area-inset-left)) 24px max(12px, env(safe-area-inset-right)); }
+.wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+h1 { font-family: var(--display); font-weight: 400; margin: 0; font-size: 1.6rem; }
+h1 span { color: var(--pink); }
+.sub { color: var(--muted); font-size: .85rem; }
+.stageBox { position: relative; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: #000; aspect-ratio: 16 / 9; }
+#stage { display: block; width: 100%; height: 100%; touch-action: none; }
+#cam { position: absolute; right: 10px; top: 10px; width: 20%; min-width: 100px; border-radius: 10px; border: 2px solid var(--cyan); transform: scaleX(-1); background: #111; }
+#camOverlay { position: absolute; right: 10px; top: 10px; width: 20%; min-width: 100px; pointer-events: none; }
+.hud { position: absolute; left: 12px; top: 10px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: 70%; }
+.chip { background: rgba(0,0,0,.6); border: 1px solid var(--line); border-radius: 14px; padding: 4px 12px; font-size: .9rem; font-variant-numeric: tabular-nums; width: fit-content; }
+.chip.err { color: #ffb1b1; border-color: #a33; }
+#big { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-size: clamp(3rem, 14vw, 9rem); color: var(--gold); text-shadow: 0 0 30px rgba(255,210,63,.6); pointer-events: none; }
+#sync { font-family: var(--display); font-size: 1.3rem; color: var(--gold); }
+.hint { position: absolute; right: 12px; bottom: 10px; font-size: .75rem; color: rgba(255,255,255,.55); pointer-events: none; }
+.deck { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card h2 { margin: 0; font-size: 1rem; font-weight: 800; color: var(--cyan); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button, select, input[type=color] { font-family: var(--body); font-weight: 800; font-size: .9rem; color: var(--ink); background: #2a2240; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+button.main { background: var(--pink); border-color: var(--pink); color: #fff; }
+button.cy { background: #0f4d5e; border-color: var(--cyan); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, select:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+input[type=color] { padding: 2px; width: 44px; height: 38px; }
+input[type=range] { accent-color: var(--pink); flex: 1; min-width: 120px; }
+label { font-size: .85rem; color: var(--muted); }
+.tabs { display: flex; gap: 6px; }
+.tabs button.on { background: var(--cyan); color: #04202a; border-color: var(--cyan); }
+.swatches { display: grid; grid-template-columns: auto auto auto auto; gap: 6px 10px; align-items: center; justify-content: start; }
+.takes { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow: auto; }
+.take { display: flex; align-items: center; gap: 8px; background: #221b35; border-radius: 10px; padding: 6px 10px; font-size: .85rem; }
+.take span { flex: 1; }
+.note { font-size: .78rem; color: var(--muted); line-height: 1.6; margin: 0; }
+.vrmBox { border-top: 1px dashed var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+/* ===== MOVE CLONE / visual refresh ===== */
+:root {
+  --bg:#070812; --panel:rgba(19,22,40,.88); --line:rgba(132,151,255,.22);
+  --ink:#f7f8ff; --muted:#a6aecb; --pink:#ff4fc8; --cyan:#45e7ff; --gold:#ffe07a;
+  --display:"Dela Gothic One","Hiragino Sans",sans-serif;
+  --body:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans",sans-serif;
+}
+html,body { background:radial-gradient(ellipse at 50% -20%,#20224b 0%,#0b0c18 48%,#05060b 100%); }
+body { padding:18px max(14px,env(safe-area-inset-left)) 32px max(14px,env(safe-area-inset-right)); }
+.wrap { max-width:1440px; gap:16px; }
+header { align-items:center; padding:5px 2px 10px; }
+h1 { font-size:clamp(1.5rem,2.6vw,2.25rem); letter-spacing:.025em; text-shadow:0 0 28px rgba(69,231,255,.13); }
+h1 span { background:linear-gradient(100deg,#ff55c9,#a98aff 52%,#45e7ff); color:transparent; background-clip:text; -webkit-background-clip:text; }
+.sub { color:#b5bdd8; letter-spacing:.02em; }
+.stageBox { border-radius:22px; border:1px solid rgba(111,145,255,.34); aspect-ratio:16/9; box-shadow:0 18px 60px rgba(0,0,0,.38),0 0 34px rgba(64,105,255,.09),inset 0 0 0 1px rgba(255,255,255,.035); background:linear-gradient(135deg,#080917,#100b20); }
+#stage { filter:saturate(1.12) contrast(1.025); }
+#cam { border-radius:13px; border:1px solid rgba(69,231,255,.95); box-shadow:0 0 0 4px rgba(69,231,255,.08),0 10px 30px rgba(0,0,0,.4); }
+#camOverlay { filter:drop-shadow(0 0 4px rgba(69,231,255,.7)); }
+.hud { gap:8px; }
+.chip { background:rgba(6,8,20,.76); backdrop-filter:blur(12px); border:1px solid rgba(153,167,255,.25); border-radius:999px; padding:7px 13px; box-shadow:0 5px 18px rgba(0,0,0,.15); }
+#sync { color:#ffe27a; text-shadow:0 0 16px rgba(255,210,63,.3); }
+.hint { background:rgba(5,6,16,.55); border:1px solid rgba(255,255,255,.08); padding:5px 10px; border-radius:999px; backdrop-filter:blur(8px); }
+.deck { grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:14px; }
+.card { position:relative; overflow:hidden; background:linear-gradient(155deg,rgba(27,29,53,.96),rgba(13,15,29,.96)); border:1px solid rgba(134,151,255,.19); border-radius:19px; padding:17px; gap:12px; box-shadow:0 10px 28px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.035); }
+.card:before { content:""; position:absolute; top:0; left:18px; right:18px; height:1px; background:linear-gradient(90deg,transparent,rgba(69,231,255,.5),rgba(255,79,200,.4),transparent); pointer-events:none; }
+.card h2 { font-size:1rem; letter-spacing:.03em; display:flex; align-items:center; gap:8px; }
+.card h2:before { content:""; display:inline-block; width:5px; height:18px; border-radius:5px; background:linear-gradient(#45e7ff,#ff4fc8); box-shadow:0 0 12px rgba(69,231,255,.35); }
+button,select,input[type=color] { background:linear-gradient(180deg,#282d4b,#1a1d35); border:1px solid rgba(160,173,255,.22); border-radius:11px; padding:10px 13px; transition:transform .16s ease,border-color .16s ease,filter .16s ease,box-shadow .16s ease; }
+button:hover:not(:disabled) { transform:translateY(-1px); border-color:rgba(69,231,255,.65); filter:brightness(1.12); box-shadow:0 7px 18px rgba(0,0,0,.2); }
+button:active:not(:disabled) { transform:translateY(0) scale(.985); }
+button.main { background:linear-gradient(105deg,#ff39b9,#c345ed); border-color:#ff61cb; box-shadow:0 6px 22px rgba(255,63,180,.2); }
+button.cy { background:linear-gradient(105deg,#123c53,#15576b); border-color:rgba(69,231,255,.5); }
+button:disabled { opacity:.38; box-shadow:none; }
+input[type=range] { accent-color:var(--pink); }
+input[type=color] { border-radius:9px; padding:3px; background:#11152a; }
+label { color:#b4bddb; }
+.tabs { padding:4px; border-radius:13px; background:rgba(4,6,16,.55); border:1px solid rgba(255,255,255,.05); }
+.tabs button { flex:1; }
+.tabs button.on { background:linear-gradient(105deg,#45e7ff,#79f2ff); color:#06131c; border-color:#8cf3ff; box-shadow:0 0 18px rgba(69,231,255,.18); }
+.take { background:rgba(7,10,24,.65); border:1px solid rgba(140,155,255,.12); border-radius:11px; }
+.take button { padding:6px 9px; }
+.note { color:#9ea8c9; line-height:1.7; }
+.vrmBox { border-top:1px solid rgba(137,153,255,.18); }
+.swatches { gap:8px 10px; }
+@media (max-width:640px) {
+ body { padding:10px 10px 22px; }
+ header { align-items:flex-start; flex-direction:column; gap:5px; }
+ .stageBox { border-radius:14px; }
+ #cam { min-width:78px; width:24%; right:7px; top:7px; }
+ .hud { left:7px; top:7px; gap:4px; }
+ .chip { font-size:.72rem; padding:4px 8px; }
+ .card { padding:13px; }
+}
+
+
+/* Mobile reliability and touch targets */
+#cam { object-fit: cover; aspect-ratio: 4 / 3; }
+button, select { min-height: 44px; touch-action: manipulation; }
+input, select, button { max-width: 100%; }
+@media (max-width: 640px) {
+  body { padding: 8px 8px calc(18px + env(safe-area-inset-bottom)); }
+  h1 { font-size: clamp(1.25rem, 6vw, 1.8rem); }
+  .stageBox { aspect-ratio: 3 / 4; min-height: 360px; max-height: 68svh; }
+  #stage { position:absolute; inset:0; }
+  #cam { width: 29%; min-width: 88px; max-width: 132px; }
+  #camOverlay { width:29%; height:auto; }
+  .hud { max-width:65%; }
+  .chip { font-size:.68rem; max-width:100%; white-space:normal; }
+  .deck { grid-template-columns:minmax(0,1fr); }
+  .row > button { flex: 1 1 auto; }
+  .swatches { grid-template-columns:auto auto; }
+  .hint { font-size:.65rem; right:6px; bottom:6px; }
+}
+@media (max-width: 380px) {
+  .stageBox { min-height:320px; }
+  .card { padding:11px; }
+  button, select { font-size:.82rem; padding:9px 10px; }
+}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.min.js"
+  }
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>MOVE <span>CLONE</span></h1>
+    <div class="sub">踊ったら、クローンが生まれる。</div>
+  </header>
+
+  <div class="stageBox" id="stageBox">
+    <canvas id="stage"></canvas>
+    <video id="cam" playsinline webkit-playsinline autoplay muted></video>
+    <canvas id="camOverlay" width="320" height="240"></canvas>
+    <div class="hud">
+      <div class="chip" id="status">📷 カメラを起動してね（スマホはHTTPSで開く）</div>
+      <div class="chip" id="beat">♪ ---</div>
+      <div class="chip" id="sync" hidden>シンクロ --%</div>
+    </div>
+    <div id="big"></div>
+    <div class="hint">ドラッグで視点を回転・ホイールでズーム</div>
+  </div>
+
+  <div class="deck">
+    <section class="card">
+      <h2>① 録る</h2>
+      <div class="row">
+        <button id="btnCam" class="cy">📷 カメラ起動</button>
+        <button id="btnDemo">🤖 デモのクローン</button>
+      </div>
+      <div class="row"><label for="bpm">テンポ</label><input id="bpm" type="range" min="60" max="160" value="100"><span id="bpmVal">100</span></div>
+      <div class="row">
+        <label for="counts">長さ</label>
+        <select id="counts"><option value="16" selected>2エイト（16カウント）</option><option value="32">4エイト（32カウント）</option><option value="64">8エイト（64カウント）</option></select>
+        <label><input id="click" type="checkbox" checked> クリック音</label>
+      </div>
+      <div class="row"><label for="music">曲（任意）</label><input id="music" type="file" accept="audio/*"></div>
+      <div class="row"><button id="btnRec" class="main" disabled>🔴 録画（4カウント後スタート）</button></div>
+      <div class="vrmBox">
+        <div class="row">
+          <input id="vidFile" type="file" accept="video/*" hidden>
+          <button id="btnVid" class="cy">🎬 動画から振付を取り込む</button>
+          <label><input id="vidMirror" type="checkbox"> 鏡にする</label>
+        </div>
+        <p class="note">レッスン動画などを入れると、選んだ1人（先生など）の動きだけを抜き出してクローンにします。最大60秒。全身が映っている動画ほどきれいに取れます。</p>
+      </div>
+      <p class="note">全身がカメラに入るくらい離れて立ってね（2〜3m）。録り終わると、すぐ隣でクローンが踊り出します。</p>
+    </section>
+
+    <section class="card">
+      <h2>② クローンと踊る</h2>
+      <div class="row">
+        <button id="btnPlay" class="main" disabled>▶ クローンと一緒に踊る</button>
+        <button id="btnStop" disabled>■ 止める</button>
+      </div>
+      <div class="takes" id="takes"><div class="note">まだ録画がないよ</div></div>
+      <div class="row">
+        <button id="btnVideo" disabled>🎥 動画で保存</button>
+        <button id="btnExport" disabled>💾 振付を保存</button>
+        <input id="importFile" type="file" accept=".json" hidden><button id="btnImport">📂 読み込み</button>
+      </div>
+      <p class="note">チェックした録画がクローンになって並びます（最大3体）。シンクロ率は自分と1体目のクローンの腕・脚の向きのズレから計算。</p>
+    </section>
+
+    <section class="card">
+      <h2>③ キャラ・服を変える</h2>
+      <div class="tabs" role="tablist">
+        <button id="tabYou" class="on" role="tab">🙋 自分</button>
+        <button id="tabTwin" role="tab">👯 クローン</button>
+      </div>
+      <div class="row">
+        <label for="kind">キャラ</label>
+        <select id="kind">
+          <option value="street">ストリート系 3D</option><option value="realistic">リアル系 3D</option><option value="anime">アニメ・ゲーム系</option>
+          <option value="human">クラシック</option><option value="robot">ロボット</option><option value="neon">ネオン</option>
+          <option value="ninja">忍者</option><option value="ghost">おばけ</option><option value="idol">アイドル</option>
+          <option value="monster">モンスター</option><option value="vrm">外部3Dモデル（VRM）</option>
+        </select>
+        <label for="hat">頭</label>
+        <select id="hat">
+          <option value="none">なし</option><option value="cap">キャップ</option><option value="beanie">ニット帽</option>
+          <option value="crown">王冠</option><option value="afro">アフロ</option><option value="horns">ツノ</option>
+        </select>
+      </div>
+      <div class="swatches">
+        <label for="cTop">トップス</label><input id="cTop" type="color" value="#ff3fb4">
+        <label for="cBottom">パンツ</label><input id="cBottom" type="color" value="#2b2b3a">
+        <label for="cShoes">くつ</label><input id="cShoes" type="color" value="#ffffff">
+        <label for="cSkin">はだ</label><input id="cSkin" type="color" value="#f1c7a0">
+      </div>
+      <div class="row">
+        <label><input id="shades" type="checkbox"> サングラス</label>
+        <label><input id="chain" type="checkbox" checked> 金のチェーン</label>
+        <label><input id="trail" type="checkbox"> 光の残像</label>
+      </div>
+      <div class="row">
+        <label for="bg">ステージ</label>
+        <select id="bg">
+          <option value="club">ネオンクラブ</option><option value="studio">ダンススタジオ</option>
+          <option value="street">NYストリート</option><option value="space">宇宙</option><option value="jungle">ジャングル</option>
+        </select>
+        <button id="btnRandom">🎲 おまかせ</button>
+      </div>
+      <div class="vrmBox">
+        <div class="row">
+          <input id="vrmFile" type="file" accept=".vrm" hidden>
+          <button id="btnVrm">🧍 VRMを読み込む</button>
+          <button id="btnVrmSample">サンプルVRM</button>
+        </div>
+        <p class="note" id="vrmNote">本格的な外部3Dモデルを使う場合は、VRoid Studioなどで用意した .vrm ファイルを読み込んでね。読み込んだモデルは、選択中の「自分／クローン」に割り当てられます。モデルの利用条件は配布元で確認してください。</p>
+      </div>
+    </section>
+  </div>
+  <dialog id="pickDlg" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:14px;max-width:min(92vw,720px)">
+    <p style="margin:0 0 8px;font-weight:800">👆 取り込みたい人（先生など）をタップしてね</p>
+    <canvas id="pickCanvas" style="width:100%;border-radius:10px;cursor:pointer"></canvas>
+    <div class="row" style="margin-top:8px"><button id="pickCancel">やめる</button></div>
+  </dialog>
+  <p class="note">※カメラ映像はこの端末内で処理します。動きの読み取りはMediaPipe、3D表示はThree.js / three-vrmを使用。よりリアルな外部モデルは「VRMを読み込む」から追加できます。モデルの配布条件・利用許諾は配布元で確認してください。</p>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
+
+const MP_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+const SAMPLE_VRM = "https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm";
+
+const $ = (id) => document.getElementById(id);
+const cam = $("cam"), ov = $("camOverlay"), octx = ov.getContext("2d");
+
+// ===== 状態 =====
+const S = {
+  landmarker: null, camOn: false,
+  liveW: null,   // 3Dの関節（MediaPipeのworld座標、メートル）
+  live2D: null,  // カメラ小窓用の2D
+  mode: "idle", takes: [], recFrames: [], recStart: 0, countStart: 0, playStart: performance.now(),
+  lastBeat: -1, syncSum: 0, syncN: 0, syncNow: null,
+  look: {
+    you:  { kind: "street", hat: "cap",  top: "#ff3fb4", bottom: "#2b2b3a", shoes: "#ffffff", skin: "#f1c7a0", shades: false, chain: true,  trail: false },
+    twin: { kind: "neon",  hat: "none", top: "#3fe0ff", bottom: "#14202c", shoes: "#3fe0ff", skin: "#bdf6ff", shades: true,  chain: false, trail: true },
+  },
+  vrmBuf: { you: null, twin: null },
+  edit: "you", bg: "club", audio: null, recorder: null, dirty: { you: true, twin: true },
+};
+try { const saved = JSON.parse(localStorage.getItem("danceTwin3DLook") || "null"); if (saved && saved.you && saved.twin) S.look = saved; } catch (e) {}
+for (const r of ["you", "twin"]) if (S.look[r].kind === "vrm") S.look[r].kind = "human"; // VRMは毎回読み込み
+
+const bpm = () => +$("bpm").value;
+const beatMs = () => 60000 / bpm();
+const counts = () => +$("counts").value;
+function setStatus(t, err) { $("status").textContent = t; $("status").className = "chip" + (err ? " err" : ""); }
+function big(t) { $("big").textContent = t; }
+
+// ===== 音 =====
+let actx;
+function tick(strong) {
+  if (!$("click").checked) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.value = strong ? 1500 : 1000; g.gain.value = 0.15;
+    o.connect(g).connect(actx.destination);
+    o.start(); g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.08); o.stop(actx.currentTime + 0.1);
+  } catch (e) {}
+}
+$("music").addEventListener("change", (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  if (S.audio) S.audio.pause();
+  S.audio = new Audio(URL.createObjectURL(f));
+  setStatus("🎵 曲を読み込んだ：" + f.name);
+});
+
+// ===== 3Dの舞台 =====
+const canvas = $("stage");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.matchMedia("(max-width: 700px)").matches ? 1.35 : 2, window.devicePixelRatio || 1));
+renderer.setClearColor(0x080914, 1);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const scene = new THREE.Scene();
+const camera3 = new THREE.PerspectiveCamera(32, 16 / 9, 0.1, 200);
+camera3.position.set(0, 1.45, 6.2);
+const controls = new OrbitControls(camera3, canvas);
+controls.target.set(0, 1.0, 0);
+controls.enableDamping = true;
+controls.minDistance = 2.5; controls.maxDistance = 14;
+controls.maxPolarAngle = Math.PI * 0.52;
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera3.aspect = w / h; camera3.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe($("stageBox"));
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x332244, 0.9);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffffff, 1.6);
+key.position.set(2.5, 6, 4);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.bias = -0.00015;
+Object.assign(key.shadow.camera, { left: -5, right: 5, top: 5, bottom: -2, near: 0.5, far: 20 });
+scene.add(key);
+const rimPink = new THREE.PointLight(0xff3fb4, 2.0, 12);
+rimPink.position.set(-3, 3.2, -1.5); scene.add(rimPink);
+const rimCyan = new THREE.PointLight(0x3fe0ff, 2.1, 12);
+rimCyan.position.set(3, 2.8, -1.2); scene.add(rimCyan);
+const frontFill = new THREE.DirectionalLight(0xb7c7ff, 0.55);
+frontFill.position.set(-2, 3, 5); scene.add(frontFill);
+
+// トゥーン調の陰影
+const GRAD = (() => { const d = new Uint8Array([70, 150, 235]); const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+
+let env = null;
+const envAnim = [];
+function setBg(name) {
+  if (env) { scene.remove(env); env.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
+  envAnim.length = 0;
+  env = new THREE.Group();
+  scene.add(env);
+  const colors = { club: [0x0a0614, 0x2a0a3a], studio: [0x2a2032, 0x6a5a48], street: [0x0b1322, 0x2a2a30], space: [0x02020c, 0x14143a], jungle: [0x0f2a1c, 0x4a3b28] }[name];
+  scene.background = new THREE.Color(colors[0]);
+  scene.fog = new THREE.Fog(colors[0], 12, 40);
+  // 床（円形ステージ）
+  const floorMat = new THREE.MeshStandardMaterial({ color: colors[1], roughness: name === "club" ? 0.25 : 0.8, metalness: name === "club" ? 0.4 : 0 });
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 64), floorMat);
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; env.add(floor);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(3.6, 3.75, 96), new THREE.MeshBasicMaterial({ color: name === "jungle" ? 0xffd23f : 0xff3fb4 }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.005; env.add(ring);
+  hemi.intensity = name === "club" || name === "space" ? 0.55 : 1.0;
+
+  if (name === "club") {
+    // 光るタイル
+    const tiles = [];
+    for (let x = -5; x <= 5; x++) for (let z = -3; z <= 1; z++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.95), new THREE.MeshBasicMaterial({ color: 0x220033, transparent: true, opacity: 0.9 }));
+      m.rotation.x = -Math.PI / 2; m.position.set(x, 0.004, z); env.add(m); tiles.push(m);
+    }
+    const pal = [0xff3fb4, 0x3fe0ff, 0xffd23f, 0x8a3fff];
+    envAnim.push((t) => tiles.forEach((m, i) => m.material.color.setHex(((i * 7 + Math.floor(t / 470)) % 5) ? 0x1a0628 : pal[i % 4])));
+    // 動くスポットライト（光の筋）
+    for (let k = 0; k < 5; k++) {
+      const col = pal[k % 4];
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(1.4, 9, 24, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      cone.geometry.translate(0, -4.5, 0);
+      const pivot = new THREE.Group(); pivot.position.set(-4 + k * 2, 8, -3); pivot.add(cone); env.add(pivot);
+      envAnim.push((t) => { pivot.rotation.z = Math.sin(t / 900 + k) * 0.5; pivot.rotation.x = Math.cos(t / 1100 + k * 2) * 0.3; });
+    }
+    // 奥のLEDウォール
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(16, 6), new THREE.MeshBasicMaterial({ color: 0x14001f }));
+    wall.position.set(0, 3, -6); env.add(wall);
+    for (let i = 0; i < 24; i++) {
+      const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 1), new THREE.MeshBasicMaterial({ color: pal[i % 4] }));
+      bar.position.set(-7.2 + i * 0.63, 0.5, -5.95); env.add(bar);
+      envAnim.push((t) => { const h = 0.3 + Math.abs(Math.sin(t / 300 + i * 0.7)) * 4; bar.scale.y = h; bar.position.y = h / 2 + 0.2; });
+    }
+  } else if (name === "studio") {
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(20, 7), new THREE.MeshStandardMaterial({ color: 0x3a3048 }));
+    wall.position.set(0, 3.5, -5); env.add(wall);
+    for (let i = -3; i <= 3; i++) { // 鏡
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 3.6), new THREE.MeshStandardMaterial({ color: 0x9ab0c8, metalness: 0.9, roughness: 0.1 }));
+      m.position.set(i * 2.3, 2.2, -4.98); env.add(m);
+    }
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 16, 8), new THREE.MeshStandardMaterial({ color: 0xc0a070 }));
+    bar.rotation.z = Math.PI / 2; bar.position.set(0, 1.1, -4.85); env.add(bar);
+  } else if (name === "street") {
+    for (let i = 0; i < 12; i++) {
+      const w = 2 + (i * 37 % 15) / 10, h = 5 + (i * 71 % 90) / 10, x = -13 + i * 2.4;
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 3), new THREE.MeshStandardMaterial({ color: 0x1c2233 }));
+      b.position.set(x, h / 2, -8 - (i % 3)); env.add(b);
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.8, h * 0.85), new THREE.MeshBasicMaterial({ color: 0xffcc77, transparent: true, opacity: 0.25 }));
+      win.position.set(x, h / 2, b.position.z + 1.51); env.add(win);
+    }
+    for (let x = -12; x <= 12; x += 2) { const s = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.12), new THREE.MeshBasicMaterial({ color: 0xffd23f })); s.rotation.x = -Math.PI / 2; s.position.set(x, 0.006, 2.4); env.add(s); }
+  } else if (name === "space") {
+    const g = new THREE.BufferGeometry(), n = 1500, p = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { const r = 40 + Math.random() * 30, a = Math.random() * Math.PI * 2, b = Math.random() * Math.PI * 0.5; p.set([Math.cos(a) * Math.cos(b) * r, Math.sin(b) * r, Math.sin(a) * Math.cos(b) * r], i * 3); }
+    g.setAttribute("position", new THREE.BufferAttribute(p, 3));
+    env.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, fog: false })));
+    const planet = new THREE.Mesh(new THREE.SphereGeometry(4, 32, 24), new THREE.MeshStandardMaterial({ color: 0x5a4aa0, emissive: 0x1a1040 }));
+    planet.position.set(9, 7, -20); env.add(planet);
+    envAnim.push((t) => (planet.rotation.y = t / 8000));
+  } else if (name === "jungle") {
+    for (let i = 0; i < 22; i++) {
+      const a = (i / 22) * Math.PI * 2, r = 7 + (i % 3) * 2;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r - 2;
+      if (z > 3) continue;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 4, 8), new THREE.MeshStandardMaterial({ color: 0x4a3420 }));
+      trunk.position.set(x, 2, z); env.add(trunk);
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3, 8), new THREE.MeshToonMaterial({ color: i % 2 ? 0x2e7a3c : 0x3c9a48, gradientMap: GRAD }));
+      leaf.position.set(x, 4.8, z); env.add(leaf);
+    }
+  }
+}
+setBg(S.bg);
+$("bg").value = S.bg;
+
+// ===== MediaPipeの点 → アバターの関節（鏡のように左右反転） =====
+// MediaPipe: x右・y下・z手前がマイナス → three: X右・Y上・Z手前がプラス。鏡にするので左右を入れ替える
+const MPL = { sh: 11, el: 13, wr: 15, hip: 23, kn: 25, an: 27, heel: 29, toe: 31, ear: 7, idx: 19 };
+const MPR = { sh: 12, el: 14, wr: 16, hip: 24, kn: 26, an: 28, heel: 30, toe: 32, ear: 8, idx: 20 };
+function toJoints(w) {
+  // w: 33個の [x,y,z]
+  const v = (i) => new THREE.Vector3(-w[i][0], -w[i][1], -w[i][2] * 0.7);
+  const J = { nose: v(0) };
+  for (const k in MPL) { J["l" + k] = v(MPR[k]); J["r" + k] = v(MPL[k]); } // 鏡：自分の右手＝アバターの左手
+  J.hipMid = J.lhip.clone().add(J.rhip).multiplyScalar(0.5);
+  J.shMid = J.lsh.clone().add(J.rsh).multiplyScalar(0.5);
+  J.earMid = J.lear.clone().add(J.rear).multiplyScalar(0.5);
+  return J;
+}
+function basis(xv, yv) { // x方向とだいたいのy方向から回転を作る
+  const x = xv.clone().normalize(), z = new THREE.Vector3().crossVectors(x, yv).normalize(), y = new THREE.Vector3().crossVectors(z, x);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+}
+
+// ===== 自作の3Dキャラ =====
+const UP = new THREE.Vector3(0, 1, 0);
+function makeMats(L) {
+  const k = L.kind;
+  const toon = (c, extra = {}) => new THREE.MeshToonMaterial({ color: c, gradientMap: GRAD, ...extra });
+  const standard = (c, extra = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.62, metalness: 0.02, ...extra });
+  if (k === "realistic") return { top: standard(L.top, { roughness: 0.82 }), bottom: standard(L.bottom, { roughness: 0.88 }), shoes: standard(L.shoes, { roughness: 0.48 }), skin: standard(L.skin, { roughness: 0.72 }), dark: standard(0x191820), hair: standard(0x211a1b, { roughness: 0.9 }) };
+  if (k === "street") return { top: standard(L.top, { roughness: 0.72 }), bottom: standard(L.bottom, { roughness: 0.82 }), shoes: standard(L.shoes, { roughness: 0.4 }), skin: standard(L.skin, { roughness: 0.72 }), dark: standard(0x191820), hair: standard(0x191719) };
+  if (k === "anime") return { top: toon(L.top), bottom: toon(L.bottom), shoes: standard(L.shoes, { roughness: 0.35 }), skin: toon(L.skin), dark: toon(0x17131e), hair: toon(0x30213b) };
+  if (k === "robot") {
+    const metal = (c) => new THREE.MeshStandardMaterial({ color: c, metalness: 0.85, roughness: 0.3 });
+    return { top: metal(L.top), bottom: metal(0x7a8494), shoes: metal(L.shoes), skin: metal(0xb8c2d0), dark: metal(0x22262e) };
+  }
+  if (k === "neon") {
+    const glow = (c) => new THREE.MeshStandardMaterial({ color: 0x050505, emissive: c, emissiveIntensity: 2.2 });
+    return { top: glow(L.top), bottom: toon(L.bottom), shoes: glow(L.shoes), skin: glow(L.skin), dark: toon(0x111111) };
+  }
+  if (k === "ghost") {
+    const gh = (c) => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.5, transparent: true, opacity: 0.5, depthWrite: false });
+    return { top: gh(L.top), bottom: gh(L.bottom), shoes: gh(L.shoes), skin: gh(0xeef6ff), dark: gh(0x111122) };
+  }
+  if (k === "ninja") return { top: toon(0x24242e), bottom: toon(0x1b1b24), shoes: toon(0x111111), skin: toon(0x24242e), dark: toon(0x111111), face: toon(0xe9d0a8), scarf: toon(0xe23b3b) };
+  if (k === "monster") return { top: toon(L.top), bottom: toon(L.bottom), shoes: toon(0x2a2a2a), skin: toon(new THREE.Color(L.top).multiplyScalar(0.7)), dark: toon(0x111111) };
+  return { top: toon(L.top), bottom: toon(L.bottom), shoes: toon(L.shoes), skin: toon(L.skin), dark: toon(0x15151b) };
+}
+const GEO = {
+  cyl: new THREE.CylinderGeometry(1, 1, 1, 28),
+  taper: new THREE.CylinderGeometry(1, 0.8, 1, 28),
+  sph: new THREE.SphereGeometry(1, 32, 24),
+  box: new THREE.BoxGeometry(1, 1, 1),
+};
+function makeFigure(L) {
+  const g = new THREE.Group();
+  const M = makeMats(L), k = L.kind;
+  const mesh = (geo, mat) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; g.add(m); return m; };
+  const F = { g, k, L, segs: [], joints: [] };
+  const fore = ["human", "street", "realistic", "anime", "idol"].includes(k) ? M.skin : M.top;
+  const shin = k === "idol" ? M.skin : M.bottom;
+  const th = k === "robot" ? 1.2 : k === "idol" ? 0.85 : 1;
+  for (const s of ["l", "r"]) {
+    F.segs.push([s + "sh", s + "el", 0.05 * th, mesh(GEO.cyl, M.top)]);
+    F.segs.push([s + "el", s + "wr", 0.042 * th, mesh(GEO.cyl, fore)]);
+    F.segs.push([s + "hip", s + "kn", 0.075 * th, mesh(GEO.cyl, M.bottom)]);
+    F.segs.push([s + "kn", s + "an", 0.055 * th, mesh(GEO.cyl, shin)]);
+    F.joints.push([s + "el", 0.046 * th, mesh(GEO.sph, M.top)]);
+    F.joints.push([s + "kn", 0.062 * th, mesh(GEO.sph, M.bottom)]);
+    F.joints.push([s + "sh", 0.06 * th, mesh(GEO.sph, M.top)]);
+    F.joints.push([s + "hip", 0.08 * th, mesh(GEO.sph, M.bottom)]);
+    F["hand" + s] = mesh(new THREE.SphereGeometry(1, 20, 16), k === "monster" ? M.dark : M.skin);
+    F["foot" + s] = mesh(new THREE.BoxGeometry(1, 1, 1), M.shoes);
+    const soleMat = new THREE.MeshStandardMaterial({ color: 0xf2f0eb, roughness: 0.7 });
+    F["sole" + s] = mesh(new THREE.BoxGeometry(1, 1, 1), soleMat);
+    F["toeCap" + s] = mesh(new THREE.SphereGeometry(1, 20, 14), M.shoes);
+  }
+  // 柔らかい輪郭の胴体と骨盤。服の素材感はスタイルごとに切り替える。
+  F.torso = mesh(new THREE.CapsuleGeometry(0.5, 0.55, 8, 20), M.top);
+  F.pelvis = mesh(new THREE.CapsuleGeometry(0.5, 0.18, 6, 16), M.bottom);
+  F.neck = mesh(new THREE.CylinderGeometry(0.72, 0.9, 1, 16), M.skin);
+  // 頭・髪・顔のディテール
+  F.head = new THREE.Group(); g.add(F.head);
+  const R = 0.125;
+  const skull = new THREE.Mesh(k === "robot" ? new THREE.BoxGeometry(R * 1.8, R * 1.9, R * 1.8) : new THREE.SphereGeometry(R, 32, 24), M.skin);
+  skull.castShadow = true; F.head.add(skull);
+  const hadd = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; F.head.add(m); return m; };
+  if (k === "ninja") hadd(new THREE.BoxGeometry(R * 1.7, R * 0.5, 0.05), M.face, 0, 0.01, R * 0.82);
+  const eyeMat = new THREE.MeshStandardMaterial({ color: k === "robot" || k === "monster" ? 0xff3f5a : k === "neon" ? 0xffffff : 0x17131a, roughness: 0.28 });
+  if (["realistic", "street", "human", "anime"].includes(k)) {
+    // ears, nose and a subtle mouth give the face a clearer 3D read
+    for (const side of [-1, 1]) hadd(new THREE.SphereGeometry(R * 0.17, 16, 12), M.skin, side * R * 0.94, -R * 0.02, 0);
+    hadd(new THREE.SphereGeometry(R * 0.12, 16, 12), M.skin, 0, -R * 0.06, R * 0.91).scale.set(0.75, 0.75, 0.7);
+    hadd(new THREE.BoxGeometry(R * 0.32, R * 0.035, R * 0.025), new THREE.MeshStandardMaterial({ color: 0x6e343b, roughness: 0.8 }), 0, -R * 0.42, R * 0.91);
+    if (M.hair) {
+      const hair = hadd(new THREE.SphereGeometry(R * 1.03, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.62), M.hair, 0, R * 0.25, -R * 0.02);
+      hair.scale.set(1.03, 0.95, 1.0);
+      if (k === "street" || k === "realistic") {
+        const fringe = hadd(new THREE.SphereGeometry(R * 0.56, 18, 12, 0, Math.PI, 0, Math.PI / 2), M.hair, 0, R * 0.2, R * 0.62);
+        fringe.scale.set(1.1, 0.65, 0.6);
+      }
+    }
+  }
+  if (L.shades) {
+    hadd(new THREE.BoxGeometry(R * 1.75, R * 0.42, 0.04), new THREE.MeshStandardMaterial({ color: 0x050508, metalness: 0.9, roughness: 0.1 }), 0, 0.012, R * 0.93);
+  } else {
+    for (const s of [-1, 1]) hadd(new THREE.SphereGeometry(R * (k === "idol" ? 0.17 : 0.12), 10, 8), eyeMat, s * R * 0.36, 0.01, R * 0.9);
+  }
+  if (k === "idol") { // ツインテール
+    for (const s of [-1, 1]) { const m = hadd(new THREE.CapsuleGeometry(R * 0.32, R * 1.6, 6, 10), new THREE.MeshToonMaterial({ color: new THREE.Color(L.top).multiplyScalar(0.6), gradientMap: GRAD }), s * R * 1.05, -R * 0.4, -R * 0.2); m.rotation.z = s * 0.25; }
+  }
+  const hat = k === "monster" && L.hat === "none" ? "horns" : L.hat;
+  const toon = (c) => new THREE.MeshToonMaterial({ color: c, gradientMap: GRAD });
+  if (hat === "cap") {
+    const dome = hadd(new THREE.SphereGeometry(R * 1.05, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), toon(L.top), 0, R * 0.12, 0);
+    const brim = hadd(new THREE.CylinderGeometry(R * 0.9, R * 0.9, 0.012, 20, 1, false, -Math.PI / 2, Math.PI), toon(L.top), 0, R * 0.16, R * 0.35);
+    brim.scale.z = 1.3; dome.scale.y = 0.95;
+  } else if (hat === "beanie") {
+    hadd(new THREE.SphereGeometry(R * 1.08, 20, 10, 0, Math.PI * 2, 0, Math.PI / 1.9), toon(L.bottom), 0, R * 0.1, 0);
+    hadd(new THREE.SphereGeometry(R * 0.3, 10, 8), toon(0xffffff), 0, R * 1.2, 0);
+  } else if (hat === "crown") {
+    const gold = new THREE.MeshStandardMaterial({ color: 0xffd23f, metalness: 1, roughness: 0.25 });
+    hadd(new THREE.CylinderGeometry(R * 0.75, R * 0.75, R * 0.35, 16, 1, true), gold, 0, R * 0.85, 0);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; hadd(new THREE.ConeGeometry(R * 0.14, R * 0.4, 6), gold, Math.cos(a) * R * 0.72, R * 1.2, Math.sin(a) * R * 0.72); }
+  } else if (hat === "afro") {
+    for (const [x, y, z] of [[-0.7, 0.5, -0.2], [0.7, 0.5, -0.2], [0, 1.0, 0], [-0.45, 0.9, 0.3], [0.45, 0.9, 0.3], [0, 0.7, -0.6], [-0.9, 0, -0.3], [0.9, 0, -0.3]]) hadd(new THREE.SphereGeometry(R * 0.6, 12, 10), toon(L.top), x * R, y * R, z * R);
+  } else if (hat === "horns") {
+    for (const s of [-1, 1]) { const h = hadd(new THREE.ConeGeometry(R * 0.22, R * 1.0, 10), toon(0xf4ead0), s * R * 0.55, R * 1.05, 0); h.rotation.z = -s * 0.45; }
+  }
+  if (L.chain && k !== "robot") {
+    F.chain = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.008, 6, 24, Math.PI), new THREE.MeshStandardMaterial({ color: 0xffd23f, metalness: 1, roughness: 0.2 }));
+    g.add(F.chain);
+  }
+  if (k === "ninja") { F.scarf = mesh(GEO.cyl, M.scarf); }
+  if (k === "idol") { F.skirt = mesh(new THREE.ConeGeometry(1, 1, 20, 1, true), M.bottom); F.skirt.material.side = THREE.DoubleSide; }
+  if (k === "robot") { F.panel = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.01), new THREE.MeshBasicMaterial({ color: 0x3fe0ff })); g.add(F.panel); }
+  return F;
+}
+const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
+function placeSeg(m, a, b, r) {
+  tmpV.subVectors(b, a); const len = tmpV.length() || 0.001;
+  m.position.copy(a).addScaledVector(tmpV, 0.5);
+  m.quaternion.setFromUnitVectors(UP, tmpV.divideScalar(len));
+  m.scale.set(r, len, r);
+}
+function poseFigure(F, J) {
+  for (const [a, b, r, m] of F.segs) placeSeg(m, J[a], J[b], r);
+  for (const [a, r, m] of F.joints) { m.position.copy(J[a]); m.scale.setScalar(r); }
+  for (const s of ["l", "r"]) {
+    const h = F["hand" + s]; h.position.copy(J[s + "wr"]).lerp(J[s + "idx"], 0.5); h.scale.setScalar(0.048);
+    const f = F["foot" + s], heel = J[s + "heel"], toe = J[s + "toe"];
+    placeSeg(f, heel, toe, 1); const len = f.scale.y;
+    f.scale.set(0.105, len + 0.08, 0.075);
+    // sneaker sole and toe-cap track the same foot segment
+    if (F["sole" + s]) {
+      F["sole" + s].position.copy(f.position).add(new THREE.Vector3(0, -0.035, 0));
+      F["sole" + s].quaternion.copy(f.quaternion); F["sole" + s].scale.set(0.112, len + 0.085, 0.082);
+    }
+    if (F["toeCap" + s]) {
+      F["toeCap" + s].position.copy(toe); F["toeCap" + s].quaternion.copy(f.quaternion); F["toeCap" + s].scale.set(0.108, 0.075, 0.078);
+    }
+  }
+  const xv = tmpV.subVectors(J.lsh, J.rsh).clone(), up = J.shMid.clone().sub(J.hipMid);
+  const qT = basis(xv, up);
+  const torsoLen = up.length();
+  F.torso.position.copy(J.shMid).lerp(J.hipMid, 0.5);
+  F.torso.quaternion.copy(qT);
+  F.torso.scale.set(xv.length() * 0.48 + 0.02, torsoLen * 0.62, 0.22);
+  F.pelvis.position.copy(J.hipMid).addScaledVector(up.clone().normalize(), 0.02);
+  F.pelvis.quaternion.copy(basis(J.lhip.clone().sub(J.rhip), up));
+  F.pelvis.scale.set(0.19, 0.12, 0.14);
+  // 頭
+  const qH = basis(J.lear.clone().sub(J.rear), new THREE.Vector3().crossVectors(J.nose.clone().sub(J.earMid), J.lear.clone().sub(J.rear)));
+  const headPos = J.earMid.clone().addScaledVector(up.clone().normalize(), 0.03);
+  F.head.position.copy(headPos); F.head.quaternion.copy(qH);
+  placeSeg(F.neck, J.shMid, headPos, 0.045);
+  if (F.chain) { F.chain.position.copy(J.shMid).addScaledVector(up.clone().normalize(), -0.06); F.chain.quaternion.copy(qT).multiply(tmpQ.setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.3)); F.chain.rotateZ(Math.PI); F.chain.translateZ(0.07); }
+  if (F.scarf) { placeSeg(F.scarf, J.shMid, J.shMid.clone().add(new THREE.Vector3(-0.25, -0.15, -0.25).applyQuaternion(qT)), 0.03); }
+  if (F.skirt) { F.skirt.position.copy(J.hipMid).addScaledVector(up.clone().normalize(), -0.06); F.skirt.quaternion.copy(qT); F.skirt.scale.set(0.27, 0.26, 0.21); }
+  if (F.panel) { F.panel.position.copy(F.torso.position).add(new THREE.Vector3(0, 0.03, 0.11).applyQuaternion(qT)); F.panel.quaternion.copy(qT); }
+}
+
+// ===== VRMキャラ（骨を回して動かす） =====
+const loader = new GLTFLoader();
+loader.register((p) => new VRMLoaderPlugin(p));
+async function vrmFromBuffer(buf) {
+  const gltf = await loader.parseAsync(buf.slice(0), "");
+  const vrm = gltf.userData.vrm;
+  if (!vrm) throw new Error("VRMじゃないファイル");
+  VRMUtils.removeUnnecessaryVertices(gltf.scene);
+  if (VRMUtils.combineSkeletons) VRMUtils.combineSkeletons(gltf.scene);
+  VRMUtils.rotateVRM0(vrm);
+  vrm.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+  return vrm;
+}
+const RX = new THREE.Vector3(1, 0, 0), RNX = new THREE.Vector3(-1, 0, 0), RNY = new THREE.Vector3(0, -1, 0);
+function poseVRM(vrm, J, k) {
+  const H = vrm.humanoid, node = (n) => H.getNormalizedBoneNode(n);
+  const set = (n, q) => { const b = node(n); if (b) b.quaternion.slerp(q, k); };
+  const up = J.shMid.clone().sub(J.hipMid);
+  const qHips = basis(J.lhip.clone().sub(J.rhip), up);
+  const qSpineW = basis(J.lsh.clone().sub(J.rsh), up);
+  set("hips", qHips);
+  set("spine", qHips.clone().invert().multiply(qSpineW));
+  for (const n of ["chest", "upperChest", "leftShoulder", "rightShoulder", "neck"]) set(n, new THREE.Quaternion());
+  const limbChain = (parentW, names, joints, rest) => {
+    let pw = parentW;
+    for (let i = 0; i < names.length; i++) {
+      const d = J[joints[i + 1]].clone().sub(J[joints[i]]).normalize();
+      const local = new THREE.Quaternion().setFromUnitVectors(rest, d.applyQuaternion(pw.clone().invert()));
+      set(names[i], local);
+      pw = pw.clone().multiply(local);
+    }
+  };
+  limbChain(qSpineW, ["leftUpperArm", "leftLowerArm"], ["lsh", "lel", "lwr"], RX);
+  limbChain(qSpineW, ["rightUpperArm", "rightLowerArm"], ["rsh", "rel", "rwr"], RNX);
+  limbChain(qHips, ["leftUpperLeg", "leftLowerLeg"], ["lhip", "lkn", "lan"], RNY);
+  limbChain(qHips, ["rightUpperLeg", "rightLowerLeg"], ["rhip", "rkn", "ran"], RNY);
+  const qHead = basis(J.lear.clone().sub(J.rear), new THREE.Vector3().crossVectors(J.nose.clone().sub(J.earMid), J.lear.clone().sub(J.rear)));
+  set("head", qSpineW.clone().invert().multiply(qHead));
+}
+
+// ===== アバター（自分／クローンの入れ物） =====
+class Avatar {
+  constructor(role, label, color) {
+    this.role = role; this.root = new THREE.Group(); scene.add(this.root);
+    this.fig = null; this.vrm = null; this.groundY = 0; this.x = 0;
+    this.label = makeLabel(label, color); this.root.add(this.label);
+    this.trail = makeTrail(); scene.add(this.trail.group);
+    this.loadId = 0;
+    this.build();
+  }
+  build() {
+    const L = S.look[this.role];
+    if (this.fig) { this.root.remove(this.fig.g); this.fig = null; }
+    if (this.vrm) { this.root.remove(this.vrm.scene); VRMUtils.deepDispose(this.vrm.scene); this.vrm = null; }
+    const id = ++this.loadId;
+    if (L.kind === "vrm" && S.vrmBuf[this.role]) {
+      this.fig = makeFigure({ ...L, kind: "ghost" }); this.root.add(this.fig.g); // 読み込み中は仮の姿
+      vrmFromBuffer(S.vrmBuf[this.role]).then((vrm) => {
+        if (id !== this.loadId) { VRMUtils.deepDispose(vrm.scene); return; }
+        if (this.fig) { this.root.remove(this.fig.g); this.fig = null; }
+        this.vrm = vrm; this.root.add(vrm.scene);
+      }).catch((e) => { console.error(e); setStatus("⚠️ VRMを開けなかった：" + e.message, true); });
+    } else {
+      this.fig = makeFigure(L.kind === "vrm" ? { ...L, kind: "human" } : L);
+      this.root.add(this.fig.g);
+    }
+    this.trail.setColor(L.top); this.trail.group.visible = !!L.trail;
+  }
+  update(J, dt, alpha = 1) {
+    this.root.visible = !!J;
+    if (!J) { this.trail.group.visible = false; return; }
+    this.root.position.x += (this.x - this.root.position.x) * 0.15;
+    let footY;
+    if (this.vrm) {
+      poseVRM(this.vrm, J, 0.6);
+      this.vrm.update(dt);
+      this.vrm.scene.updateMatrixWorld(true);
+      const H = this.vrm.humanoid; footY = Infinity;
+      for (const n of ["leftFoot", "rightFoot", "leftToes", "rightToes"]) { const b = H.getNormalizedBoneNode(n); if (b) footY = Math.min(footY, b.getWorldPosition(tmpV).y - this.root.position.y); }
+      footY -= 0.06;
+      this.label.position.y = 2.0;
+    } else if (this.fig) {
+      poseFigure(this.fig, J);
+      footY = Math.min(J.lheel.y, J.rheel.y, J.ltoe.y, J.rtoe.y, J.lan.y - 0.05, J.ran.y - 0.05) - 0.035;
+      this.label.position.set(J.earMid.x, J.earMid.y + 0.45, J.earMid.z);
+    }
+    if (isFinite(footY)) { this.groundY += (-footY - this.groundY) * 0.25; this.root.position.y = this.groundY; }
+    // 光の残像
+    const L = S.look[this.role];
+    this.trail.group.visible = !!L.trail;
+    if (L.trail) {
+      const off = this.root.position;
+      this.trail.push([J.lwr, J.rwr, J.lan, J.ran].map((p) => p.clone().add(off)));
+    }
+  }
+  dispose() { scene.remove(this.root); scene.remove(this.trail.group); if (this.vrm) VRMUtils.deepDispose(this.vrm.scene); }
+}
+function makeLabel(text, color) {
+  const c = document.createElement("canvas"); c.width = 256; c.height = 64;
+  const x = c.getContext("2d");
+  x.font = "800 40px 'M PLUS Rounded 1c', sans-serif"; x.textAlign = "center"; x.textBaseline = "middle";
+  x.lineWidth = 8; x.strokeStyle = "rgba(0,0,0,.7)"; x.strokeText(text, 128, 34); x.fillStyle = color; x.fillText(text, 128, 34);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
+  sp.scale.set(0.6, 0.15, 1); sp.renderOrder = 10;
+  return sp;
+}
+function makeTrail() {
+  const N = 14, group = new THREE.Group(), lines = [];
+  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (let i = 0; i < 4; i++) {
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+    const l = new THREE.Line(g, mat); l.frustumCulled = false; group.add(l); lines.push(l);
+  }
+  const hist = [];
+  return {
+    group,
+    setColor: (c) => mat.color.set(c),
+    push(pts) {
+      hist.push(pts); if (hist.length > N) hist.shift();
+      lines.forEach((l, k) => { const a = l.geometry.attributes.position; for (let i = 0; i < N; i++) { const p = hist[Math.max(0, hist.length - 1 - i)][k]; a.setXYZ(i, p.x, p.y, p.z); } a.needsUpdate = true; });
+    },
+  };
+}
+const you = new Avatar("you", "YOU", "#ff3fb4");
+let twins = [];
+function syncTwinCount(n) {
+  while (twins.length > n) twins.pop().dispose();
+  while (twins.length < n) twins.push(new Avatar("twin", "CLONE " + (twins.length + 1), "#3fe0ff"));
+}
+
+// ===== カメラ & MediaPipe =====
+async function startCam() {
+  $("btnCam").disabled = true;
+  setStatus("⏳ 準備中…（初回は数秒かかる）");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    $("btnCam").disabled = false;
+    setStatus("⚠️ このブラウザ/開き方ではカメラ不可。Chromeで開いてね（今：" + location.protocol + "）", true);
+    return;
+  }
+  if (!window.isSecureContext && location.hostname !== "localhost" && location.protocol !== "file:") {
+    $("btnCam").disabled = false;
+    setStatus("⚠️ カメラにはHTTPSが必要です。GitHub PagesなどHTTPSのURLで開いてください。", true);
+    return;
+  }
+  if (location.protocol === "file:") {
+    $("btnCam").disabled = false;
+    setStatus("⚠️ スマホでHTMLファイルを直接開くとカメラが使えません。HTTPSの公開URLで開いてください。", true);
+    return;
+  }
+  try {
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 } } });
+    } catch (firstError) {
+      // 一部のスマートフォンでは詳細なカメラ指定が失敗するため、基本指定で再試行
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
+    cam.srcObject = stream;
+    cam.muted = true;
+    cam.setAttribute("playsinline", "");
+    await cam.play();
+  } catch (e) {
+    console.error(e); $("btnCam").disabled = false;
+    const why = {
+      NotAllowedError: "カメラが拒否されています。ブラウザ設定でこのサイトのカメラを許可してください。",
+      NotFoundError: "カメラが見つかりません。端末のカメラを確認してください。",
+      NotReadableError: "他のアプリがカメラを使用中です。カメラを使うアプリを閉じて再試行してください。",
+      SecurityError: "カメラはHTTPSのページで起動してください。",
+      OverconstrainedError: "指定したカメラ設定に対応していません。再読み込みして再試行してください。",
+    }[e.name] || e.name + "：" + (e.message || "カメラを起動できませんでした");
+    setStatus("⚠️ " + why, true); return;
+  }
+  setStatus("✅ カメラOK！ 動き読み取りを準備中…");
+  try {
+    S.landmarker = await makeLandmarker(1, MODEL_URL);
+    S.camOn = true; $("btnRec").disabled = false;
+    setStatus("✅ 準備OK！全身を映してね");
+  } catch (e) {
+    console.error(e); $("btnCam").disabled = false;
+    setStatus("⚠️ カメラは映りましたが、姿勢認識モデルの読み込みに失敗しました。通信環境を確認して再読み込みしてください。", true);
+  }
+}
+$("btnCam").onclick = startCam;
+
+let visionP = null;
+function getVision() {
+  if (!visionP) visionP = (async () => {
+    const vision = await import(MP_URL + "/vision_bundle.mjs");
+    const fileset = await vision.FilesetResolver.forVisionTasks(MP_URL + "/wasm");
+    return { vision, fileset };
+  })().catch((e) => { visionP = null; throw e; });
+  return visionP;
+}
+async function makeLandmarker(numPoses, model) {
+  const { vision, fileset } = await getVision();
+  const opts = (delegate) => ({ baseOptions: { modelAssetPath: model, delegate }, runningMode: "VIDEO", numPoses });
+  try { return await vision.PoseLandmarker.createFromOptions(fileset, opts("GPU")); }
+  catch (e) { return await vision.PoseLandmarker.createFromOptions(fileset, opts("CPU")); }
+}
+
+let lastVideoTime = -1;
+function detect() {
+  if (!S.camOn || !S.landmarker || cam.readyState < 2 || cam.currentTime === lastVideoTime) return;
+  lastVideoTime = cam.currentTime;
+  const res = S.landmarker.detectForVideo(cam, performance.now());
+  const w = res.worldLandmarks && res.worldLandmarks[0], lm = res.landmarks && res.landmarks[0];
+  if (w) {
+    const pts = w.map((p) => [p.x, p.y, p.z]);
+    if (S.liveW) for (let i = 0; i < 33; i++) for (let a = 0; a < 3; a++) pts[i][a] = S.liveW[i][a] * 0.4 + pts[i][a] * 0.6; // なめらかに
+    S.liveW = pts;
+  }
+  if (lm) S.live2D = lm;
+  drawCamOverlay();
+}
+function drawCamOverlay() {
+  octx.clearRect(0, 0, ov.width, ov.height);
+  const L = S.live2D; if (!L) return;
+  octx.strokeStyle = "#3fe0ff"; octx.lineWidth = 2;
+  for (const [a, b] of [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]]) {
+    octx.beginPath(); octx.moveTo((1 - L[a].x) * ov.width, L[a].y * ov.height); octx.lineTo((1 - L[b].x) * ov.width, L[b].y * ov.height); octx.stroke();
+  }
+}
+
+// ===== 録画 → 再生 =====
+$("btnRec").onclick = () => {
+  if (!S.camOn) return;
+  S.mode = "count"; S.countStart = performance.now(); S.lastBeat = -1;
+  $("btnRec").disabled = true; $("btnPlay").disabled = true;
+};
+function finishRecord() {
+  const take = { id: Date.now(), name: "テイク" + (S.takes.length + 1), bpm: bpm(), counts: counts(), dur: counts() * beatMs(), frames: S.recFrames, on: true, v: 3 };
+  S.takes.unshift(take);
+  let on = 0; for (const t of S.takes) { if (t.on && on < 3) on++; else t.on = false; }
+  S.recFrames = []; renderTakes();
+  if (S.audio) S.audio.pause();
+  big(""); startPlay();
+}
+function startPlay() {
+  if (!S.takes.some((t) => t.on)) return;
+  S.mode = "play"; S.playStart = performance.now(); S.syncSum = 0; S.syncN = 0; S.lastBeat = -1;
+  $("sync").hidden = false;
+  $("btnStop").disabled = false; $("btnRec").disabled = !S.camOn; $("btnPlay").disabled = true;
+  if (S.audio) { S.audio.currentTime = 0; S.audio.play().catch(() => {}); }
+}
+function stopAll() {
+  S.mode = "idle"; if (S.audio) S.audio.pause(); big("");
+  $("btnStop").disabled = true; $("btnPlay").disabled = !S.takes.length; $("btnRec").disabled = !S.camOn;
+  if (S.recorder && S.recorder.state === "recording") S.recorder.stop();
+}
+$("btnPlay").onclick = startPlay;
+$("btnStop").onclick = stopAll;
+
+function poseAt(take, t) {
+  const f = take.frames; if (!f.length) return null;
+  t = ((t % take.dur) + take.dur) % take.dur;
+  let lo = 0, hi = f.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (f[m].t <= t) lo = m; else hi = m - 1; }
+  const a = f[lo], b = f[Math.min(lo + 1, f.length - 1)];
+  const k = b.t > a.t ? Math.min(1, (t - a.t) / (b.t - a.t)) : 0;
+  return a.p.map((p, i) => [p[0] + (b.p[i][0] - p[0]) * k, p[1] + (b.p[i][1] - p[1]) * k, p[2] + (b.p[i][2] - p[2]) * k]);
+}
+
+// ===== シンクロ率（腕・脚8本の向き） =====
+const BONES = [["lsh", "lel"], ["lel", "lwr"], ["rsh", "rel"], ["rel", "rwr"], ["lhip", "lkn"], ["lkn", "lan"], ["rhip", "rkn"], ["rkn", "ran"]];
+function syncOf(A, B) {
+  let sum = 0;
+  for (const [p, q] of BONES) {
+    const a = A[q].clone().sub(A[p]).normalize(), b = B[q].clone().sub(B[p]).normalize();
+    sum += Math.min(a.angleTo(b), Math.PI / 2) / (Math.PI / 2);
+  }
+  return Math.max(0, 1 - sum / BONES.length);
+}
+
+// ===== 動画から振付を取り込む（先生だけ抜き出し） =====
+const MODEL_FULL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
+const SWAP = [[1, 4], [2, 5], [3, 6], [7, 8], [9, 10], [11, 12], [13, 14], [15, 16], [17, 18], [19, 20], [21, 22], [23, 24], [25, 26], [27, 28], [29, 30], [31, 32]];
+let vidLm = null, vidTs = 0;
+const seek = (v, t) => new Promise((r) => { v.onseeked = () => r(); v.currentTime = t; });
+const hipC = (lm) => ({ x: (lm[23].x + lm[24].x) / 2, y: (lm[23].y + lm[24].y) / 2 });
+function pickPerson(v, res) {
+  return new Promise((resolve) => {
+    const dlg = $("pickDlg"), c = $("pickCanvas"), x = c.getContext("2d");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    x.drawImage(v, 0, 0);
+    const cols = ["#ff3fb4", "#3fe0ff", "#ffd23f", "#8aff3f", "#ff8a3f", "#c93fff"];
+    res.landmarks.forEach((lm, n) => {
+      x.strokeStyle = cols[n % 6]; x.lineWidth = Math.max(3, c.width / 200);
+      for (const [a, b] of [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]]) { x.beginPath(); x.moveTo(lm[a].x * c.width, lm[a].y * c.height); x.lineTo(lm[b].x * c.width, lm[b].y * c.height); x.stroke(); }
+      x.fillStyle = cols[n % 6]; x.font = `800 ${Math.round(c.width / 18)}px sans-serif`; x.fillText(String(n + 1), lm[0].x * c.width - 10, lm[0].y * c.height - c.width / 30);
+    });
+    c.onclick = (e) => {
+      const r = c.getBoundingClientRect(), px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+      let best = 0, bd = Infinity;
+      res.landmarks.forEach((lm, n) => { const h = hipC(lm), d = Math.hypot(h.x - px, (h.y - py) * 0.6); if (d < bd) { bd = d; best = n; } });
+      dlg.close(); resolve(best);
+    };
+    $("pickCancel").onclick = () => { dlg.close(); resolve(-1); };
+    dlg.showModal();
+  });
+}
+async function importVideo(file) {
+  const btn = $("btnVid"); btn.disabled = true;
+  try {
+    setStatus("⏳ 動き読み取りを準備中…（初回は少しかかる）");
+    if (!vidLm) vidLm = await makeLandmarker(6, MODEL_FULL);
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = URL.createObjectURL(file);
+    await new Promise((r, j) => { v.onloadeddata = r; v.onerror = () => j(new Error("この動画は開けない形式かも")); });
+    const dur = Math.min(60, v.duration || 0);
+    if (!dur) throw new Error("動画の長さが読めない");
+    // 人がいる場面を探して、取り込む人を選んでもらう
+    let res = null;
+    for (const t of [Math.min(1, dur / 2), dur * 0.25, dur * 0.5, 0.1]) {
+      await seek(v, t); vidTs += 100; res = vidLm.detectForVideo(v, vidTs);
+      if (res.landmarks && res.landmarks.length) break;
+    }
+    if (!res || !res.landmarks.length) throw new Error("人が見つからなかった。全身が映っている動画で試してね");
+    let idx = 0;
+    if (res.landmarks.length > 1) { idx = await pickPerson(v, res); if (idx < 0) { setStatus("取り込みをやめたよ"); return; } }
+    let track = hipC(res.landmarks[idx]);
+    // 先頭から1/15秒ずつ読み取り
+    const frames = [], step = 1 / 15, mirror = $("vidMirror").checked;
+    let last = null, lost = 0;
+    for (let t = 0; t < dur; t += step) {
+      await seek(v, t); vidTs += 67;
+      const r = vidLm.detectForVideo(v, vidTs);
+      let bi = -1, bd = 0.2;
+      (r.landmarks || []).forEach((lm, n) => { const h = hipC(lm), d = Math.hypot(h.x - track.x, h.y - track.y); if (d < bd) { bd = d; bi = n; } });
+      if (bi >= 0 && r.worldLandmarks[bi]) {
+        track = hipC(r.landmarks[bi]);
+        let p = r.worldLandmarks[bi].map((q) => [q.x, q.y, q.z]);
+        if (!mirror) { // 動画と同じ向きで踊らせる（左右を入れ替え）
+          p = p.map((q) => [-q[0], q[1], q[2]]);
+          for (const [a, b] of SWAP) { const tmp = p[a]; p[a] = p[b]; p[b] = tmp; }
+        }
+        if (last) for (let i = 0; i < 33; i++) for (let a = 0; a < 3; a++) p[i][a] = last[i][a] * 0.3 + p[i][a] * 0.7;
+        last = p;
+      } else lost++;
+      if (last) frames.push({ t: t * 1000, p: last.map((q) => q.slice()) });
+      setStatus(`🎬 読み取り中… ${Math.round((t / dur) * 100)}%`);
+    }
+    URL.revokeObjectURL(v.src);
+    if (frames.length < 10) throw new Error("ほとんど読み取れなかった");
+    const cnt = Math.max(8, Math.round((dur * 1000) / beatMs()));
+    S.takes.unshift({ id: Date.now(), name: "🎬 " + file.name.replace(/\.[^.]+$/, "").slice(0, 16), bpm: bpm(), counts: cnt, dur: dur * 1000, frames, on: true, v: 3 });
+    let on = 0; for (const t of S.takes) { if (t.on && on < 3) on++; else t.on = false; }
+    renderTakes(); startPlay();
+    setStatus(lost / (dur / step) > 0.3 ? "✅ 取り込み完了（見失った場面が多め。全身が映る動画だともっと正確）" : "✅ 取り込み完了！クローンが踊るよ");
+  } catch (e) {
+    console.error(e); setStatus("⚠️ " + (e.message || e), true);
+  } finally { btn.disabled = false; }
+}
+$("btnVid").onclick = () => $("vidFile").click();
+$("vidFile").onchange = (e) => { const f = e.target.files[0]; if (f) importVideo(f); e.target.value = ""; };
+
+// ===== デモのクローン =====
+function demoTake() {
+  const dur = counts() * beatMs(), frames = [];
+  for (let t = 0; t < dur; t += 33) {
+    const b = (t / beatMs()) * Math.PI;
+    const bounce = Math.abs(Math.sin(b)) * 0.05, sway = Math.sin(b / 2) * 0.06, arm = Math.sin(b), step = Math.sin(b / 2);
+    const p = Array.from({ length: 33 }, () => [0, 0, 0]);
+    // MediaPipe風：x右（＝本人の左）、y下、z手前マイナス。腰が原点
+    const set = (i, x, y, z = 0) => (p[i] = [x + sway, y + bounce, z]);
+    set(0, 0, -0.6, -0.08); set(2, 0.03, -0.63, -0.07); set(5, -0.03, -0.63, -0.07); set(7, 0.07, -0.6); set(8, -0.07, -0.6);
+    set(11, 0.17, -0.45); set(12, -0.17, -0.45);
+    set(13, 0.3, -0.33 - arm * 0.12, -0.05); set(15, 0.36 - arm * 0.05, -0.2 - arm * 0.32, -0.12);
+    set(14, -0.3, -0.33 + arm * 0.12, -0.05); set(16, -0.36 + arm * 0.05, -0.38 + arm * 0.32, -0.12);
+    set(19, 0.38 - arm * 0.05, -0.16 - arm * 0.34, -0.14); set(20, -0.38 + arm * 0.05, -0.34 + arm * 0.34, -0.14);
+    set(23, 0.1, 0); set(24, -0.1, 0);
+    const lu = Math.max(0, step) * 0.12, ru = Math.max(0, -step) * 0.12;
+    set(25, 0.12, 0.4 - lu, -lu * 1.2); set(27, 0.13, 0.8 - lu * 0.6, -lu * 0.4); set(29, 0.13, 0.85 - lu * 0.6, 0.03); set(31, 0.14, 0.86 - lu * 0.6, -0.12);
+    set(26, -0.12, 0.4 - ru, -ru * 1.2); set(28, -0.13, 0.8 - ru * 0.6, -ru * 0.4); set(30, -0.13, 0.85 - ru * 0.6, 0.03); set(32, -0.14, 0.86 - ru * 0.6, -0.12);
+    frames.push({ t, p });
+  }
+  S.takes.unshift({ id: Date.now(), name: "デモ", bpm: bpm(), counts: counts(), dur, frames, on: true, v: 3 });
+  let on = 0; for (const t of S.takes) { if (t.on && on < 3) on++; else t.on = false; }
+  renderTakes(); startPlay();
+}
+$("btnDemo").onclick = demoTake;
+
+// ===== テイク一覧 =====
+function renderTakes() {
+  const box = $("takes"); box.innerHTML = "";
+  if (!S.takes.length) box.innerHTML = '<div class="note">まだ録画がないよ</div>';
+  S.takes.forEach((t, i) => {
+    const row = document.createElement("div"); row.className = "take";
+    row.innerHTML = `<input type="checkbox" id="tk${i}" ${t.on ? "checked" : ""}><span><label for="tk${i}"></label>　${t.counts % 8 ? Math.round(t.dur / 1000) + '秒' : t.counts / 8 + 'エイト'}・${t.bpm}BPM</span><button aria-label="削除">🗑</button>`;
+    row.querySelector("label").textContent = t.name;
+    row.querySelector("input").onchange = (e) => {
+      if (e.target.checked && S.takes.filter((x) => x.on).length >= 3) { e.target.checked = false; return; }
+      t.on = e.target.checked;
+    };
+    row.querySelector("button").onclick = () => { S.takes.splice(i, 1); renderTakes(); if (!S.takes.length) stopAll(); };
+    box.appendChild(row);
+  });
+  const has = S.takes.length > 0;
+  $("btnPlay").disabled = !has || S.mode === "play";
+  $("btnExport").disabled = !has; $("btnVideo").disabled = !has;
+}
+
+// ===== 保存・読み込み =====
+$("btnExport").onclick = () => {
+  const r = (n) => Math.round(n * 1000) / 1000;
+  const data = JSON.stringify({ app: "DanceTwin3D", v: 3, takes: S.takes.map((t) => ({ ...t, frames: t.frames.map((f) => ({ t: Math.round(f.t), p: f.p.map((q) => [r(q[0]), r(q[1]), r(q[2])]) })) })) });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+  a.download = "move-clone-" + new Date().toISOString().slice(0, 16).replace(/[:T]/g, "") + ".json";
+  a.click();
+};
+$("btnImport").onclick = () => $("importFile").click();
+$("importFile").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    const ok = (d.takes || []).filter((t) => t.frames && t.frames[0] && t.frames[0].p[0].length === 3);
+    for (const t of ok) { t.on = false; S.takes.push(t); }
+    renderTakes();
+    setStatus(ok.length ? "📂 振付を読み込んだ（" + ok.length + "テイク）" : "⚠️ 3D版の振付ファイルじゃないみたい", !ok.length);
+  } catch (err) { setStatus("⚠️ 読み込めないファイル", true); }
+};
+
+// ===== 動画で保存 =====
+$("btnVideo").onclick = () => {
+  if (!window.MediaRecorder || !canvas.captureStream) { setStatus("⚠️ このブラウザは動画保存に対応してない", true); return; }
+  const stream = canvas.captureStream(30);
+  const mime = ["video/mp4", "video/webm;codecs=vp9", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m)) || "";
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const chunks = [];
+  rec.ondataavailable = (e) => chunks.push(e.data);
+  rec.onstop = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || "video/webm" }));
+    a.download = "move-clone." + ((rec.mimeType || "").includes("mp4") ? "mp4" : "webm");
+    a.click(); setStatus("🎥 動画を保存したよ");
+  };
+  S.recorder = rec; rec.start(); startPlay();
+  const take = S.takes.find((t) => t.on);
+  setStatus("🎥 録画中…（1周したら自動で保存）");
+  setTimeout(() => { if (rec.state === "recording") rec.stop(); }, (take ? take.dur : 8000) + 300);
+};
+
+// ===== 見た目の設定 =====
+const lookInputs = { kind: "kind", hat: "hat", cTop: "top", cBottom: "bottom", cShoes: "shoes", cSkin: "skin", shades: "shades", chain: "chain", trail: "trail" };
+function saveLook() { try { localStorage.setItem("danceTwin3DLook", JSON.stringify(S.look)); } catch (e) {} }
+function loadLookUI() {
+  const L = S.look[S.edit];
+  for (const id in lookInputs) { const el = $(id); if (el.type === "checkbox") el.checked = !!L[lookInputs[id]]; else el.value = L[lookInputs[id]]; }
+  $("tabYou").classList.toggle("on", S.edit === "you");
+  $("tabTwin").classList.toggle("on", S.edit === "twin");
+}
+for (const id in lookInputs) {
+  $(id).addEventListener("input", () => {
+    const el = $(id), L = S.look[S.edit];
+    if (id === "kind" && el.value === "vrm" && !S.vrmBuf[S.edit]) { $("vrmFile").click(); el.value = L.kind; return; }
+    L[lookInputs[id]] = el.type === "checkbox" ? el.checked : el.value;
+    S.dirty[S.edit] = true; saveLook();
+  });
+}
+$("tabYou").onclick = () => { S.edit = "you"; loadLookUI(); };
+$("tabTwin").onclick = () => { S.edit = "twin"; loadLookUI(); };
+$("bg").onchange = (e) => { S.bg = e.target.value; setBg(S.bg); };
+$("bpm").oninput = () => ($("bpmVal").textContent = bpm());
+$("btnRandom").onclick = () => {
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const hex = () => "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0");
+  const L = S.look[S.edit];
+  L.kind = pick(["street", "realistic", "anime", "human", "robot", "neon", "ninja", "ghost", "idol", "monster"]);
+  L.hat = pick(["none", "cap", "beanie", "crown", "afro", "horns"]);
+  L.top = hex(); L.bottom = hex(); L.shoes = hex();
+  L.shades = Math.random() < 0.5; L.chain = Math.random() < 0.5; L.trail = Math.random() < 0.4;
+  S.dirty[S.edit] = true; saveLook(); loadLookUI();
+};
+function useVRM(buf, name) {
+  S.vrmBuf[S.edit] = buf;
+  S.look[S.edit].kind = "vrm";
+  S.dirty[S.edit] = true; loadLookUI();
+  setStatus("🧍 VRMを読み込み中：" + name);
+  setTimeout(() => setStatus("🧍 " + (S.edit === "you" ? "自分" : "クローン") + "が「" + name + "」になったよ"), 1500);
+}
+$("btnVrm").onclick = () => $("vrmFile").click();
+$("vrmFile").onchange = async (e) => { const f = e.target.files[0]; if (f) useVRM(await f.arrayBuffer(), f.name); e.target.value = ""; };
+$("btnVrmSample").onclick = async () => {
+  setStatus("⏳ サンプルVRMをダウンロード中…");
+  try { const r = await fetch(SAMPLE_VRM); if (!r.ok) throw new Error(r.status); useVRM(await r.arrayBuffer(), "サンプル"); }
+  catch (e) { setStatus("⚠️ サンプルを取れなかった。VRoid Hubなどから.vrmを落として『VRMを読み込む』でどうぞ", true); }
+};
+loadLookUI();
+
+// ===== メインループ =====
+let prev = performance.now();
+function loop(now) {
+  const dt = Math.min(0.1, (now - prev) / 1000); prev = now;
+  detect();
+  const bm = beatMs();
+  const active = S.takes.filter((t) => t.on).slice(0, 3);
+
+  if (S.mode === "count") {
+    const e = now - S.countStart, beat = Math.floor(e / bm);
+    if (beat !== S.lastBeat) { S.lastBeat = beat; if (beat < 4) tick(beat === 0); }
+    if (beat < 4) { big(String(4 - beat)); $("beat").textContent = "♪ 準備…"; }
+    else {
+      S.mode = "rec"; S.recStart = S.countStart + 4 * bm; S.recFrames = []; S.lastBeat = -1; big("");
+      if (S.audio) { S.audio.currentTime = 0; S.audio.play().catch(() => {}); }
+    }
+  }
+  if (S.mode === "rec") {
+    const e = now - S.recStart, beat = Math.floor(e / bm);
+    if (beat !== S.lastBeat) { S.lastBeat = beat; tick(beat % 8 === 0); }
+    $("beat").textContent = `🔴 録画中 ${Math.floor(beat / 8) + 1}エイト目 / ${counts() / 8}エイト　カウント ${beat % 8 + 1}`;
+    if (S.liveW) S.recFrames.push({ t: e, p: S.liveW.map((p) => p.slice()) });
+    if (e >= counts() * bm) finishRecord();
+  }
+
+  // 見た目の変更を反映
+  syncTwinCount(active.length);
+  if (S.dirty.you) { you.build(); S.dirty.you = false; }
+  if (S.dirty.twin) { twins.forEach((t) => t.build()); S.dirty.twin = false; }
+
+  // 並び：自分が左、クローンが右
+  const n = 1 + active.length, gap = 1.35;
+  you.x = (0 - (n - 1) / 2) * gap;
+  twins.forEach((t, i) => (t.x = (i + 1 - (n - 1) / 2) * gap));
+
+  const youJ = S.liveW ? toJoints(S.liveW) : null;
+  you.update(youJ, dt);
+  let firstJ = null;
+  const e = now - S.playStart;
+  active.forEach((tk, i) => {
+    const p = poseAt(tk, e * (bpm() / tk.bpm));
+    const J = p ? toJoints(p) : null;
+    if (i === 0) firstJ = J;
+    twins[i].update(J, dt);
+  });
+  if (S.mode === "play" && active[0]) {
+    const tk = active[0], beat = Math.floor((e * (bpm() / tk.bpm)) / bm);
+    if (beat !== S.lastBeat) { S.lastBeat = beat; tick(beat % 8 === 0); }
+    const bi = beat % tk.counts;
+    $("beat").textContent = `▶ ${Math.floor(bi / 8) + 1}/${Math.ceil(tk.counts / 8)}エイト　カウント ${bi % 8 + 1}`;
+  }
+  if (S.mode === "play" && youJ && firstJ) {
+    const s = syncOf(youJ, firstJ);
+    S.syncNow = S.syncNow == null ? s : S.syncNow * 0.85 + s * 0.15;
+    S.syncSum += s; S.syncN++;
+    $("sync").textContent = `シンクロ ${Math.round(S.syncNow * 100)}%（平均 ${Math.round((S.syncSum / S.syncN) * 100)}%）`;
+  }
+  for (const f of envAnim) f(now);
+  controls.update();
+  renderer.render(scene, camera3);
+  requestAnimationFrame(loop);
+}
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
